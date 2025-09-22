@@ -1,6 +1,9 @@
-# AlphaX Slack Bot 🤖
+# AlphaX Tracker 🚀
 
-A Next.js application that provides a Slack bot capable of sending direct messages to users. Built for easy deployment on Vercel and GitHub.
+A comprehensive student tracking system with Google Sheets integration, Slack notifications, and social media monitoring. Built with Next.js for easy deployment on Vercel.
+
+**Last Updated**: December 2024  
+**Status**: Production Ready
 
 ## Features
 
