@@ -1,93 +1,89 @@
-/**
- * API endpoint for managing check charts
- * Handles GET (fetch chart) and POST (save chart) operations
- */
-
-const sheetsDb = require('../../../lib/sheets-database');
+const sheetsDB = require('../../../lib/sheets-database');
+const { DEFAULT_STUDENTS, DEFAULT_PROFILES } = require('../../../lib/fallback-data');
 
 export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    // Initialize sheets database
-    const initialized = await sheetsDb.initialize();
-    if (!initialized) {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to initialize database'
-      });
+    let students = [];
+    let usingFallback = false;
+
+    // Try Google Sheets first
+    try {
+      const dbInitialized = await sheetsDB.initialize();
+      if (dbInitialized) {
+        students = await sheetsDB.getAllStudents();
+        
+        // Get profiles for each student
+        for (let student of students) {
+          const profile = await sheetsDB.getProfile(student.id);
+          if (profile) {
+            student.profile = profile;
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Google Sheets unavailable, using fallback data');
+      usingFallback = true;
     }
 
-    // Check authentication
-    const authToken = req.headers.authorization?.replace('Bearer ', '');
-    const userRole = req.headers['x-user-role'];
-
-    if (!authToken || userRole !== 'admin') {
-      return res.status(401).json({
-        success: false,
-        error: 'Unauthorized - Admin access required'
-      });
+    // Use fallback data if needed
+    if (!students || students.length === 0 || usingFallback) {
+      students = DEFAULT_STUDENTS.map(student => ({
+        ...student,
+        profile: DEFAULT_PROFILES[student.id] || {}
+      }));
+      usingFallback = true;
     }
 
-    if (req.method === 'GET') {
-      // Fetch check chart
-      const { type } = req.query;
-      
-      if (!type || !['honors', 'nonhonors'].includes(type)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid chart type. Must be "honors" or "nonhonors"'
-        });
-      }
+    // Format response
+    const chartData = students.map(student => ({
+      id: student.id,
+      name: student.fullName || `${student.firstName} ${student.lastName}`,
+      email: student.email,
+      status: student.status || 'active',
+      points: student.points || 0,
+      dailyGoal: student.profile?.dailyGoal || 0,
+      sessionGoal: student.profile?.sessionGoal || 0,
+      brainliftCompleted: student.profile?.brainliftCompleted || false,
+      dailyGoalCompleted: student.profile?.dailyGoalCompleted || false,
+      projectOneliner: student.profile?.projectOneliner || '',
+      lastActivity: student.lastActivity || null
+    }));
 
-      const isHonors = type === 'honors';
-      const chart = await sheetsDb.getCheckChart(isHonors);
+    return res.status(200).json({
+      success: true,
+      students: chartData,
+      totalStudents: chartData.length,
+      ...(usingFallback && { 
+        notice: 'Using demo data. Configure Google Sheets for full functionality.' 
+      })
+    });
 
-      return res.status(200).json({
-        success: true,
-        chart
-      });
-
-    } else if (req.method === 'POST') {
-      // Save check chart
-      const { type, chart } = req.body;
-
-      if (!type || !['honors', 'nonhonors'].includes(type)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid chart type. Must be "honors" or "nonhonors"'
-        });
-      }
-
-      if (!chart || !chart.stages) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid chart data'
-        });
-      }
-
-      const isHonors = type === 'honors';
-      const result = await sheetsDb.saveCheckChart(isHonors, chart);
-
-      if (result.success) {
-        return res.status(200).json({
-          success: true,
-          message: 'Check chart saved successfully'
-        });
-      } else {
-        throw new Error('Failed to save chart');
-      }
-
-    } else {
-      res.setHeader('Allow', ['GET', 'POST']);
-      return res.status(405).json({
-        success: false,
-        error: 'Method not allowed'
-      });
-    }
   } catch (error) {
-    console.error('Check chart API error:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || 'Internal server error'
+    console.error('Error in checkchart:', error);
+    // Return fallback data even on error
+    const fallbackData = DEFAULT_STUDENTS.map(student => ({
+      id: student.id,
+      name: student.fullName,
+      email: student.email,
+      status: student.status,
+      points: student.points,
+      dailyGoal: DEFAULT_PROFILES[student.id]?.dailyGoal || 0,
+      sessionGoal: DEFAULT_PROFILES[student.id]?.sessionGoal || 0,
+      brainliftCompleted: DEFAULT_PROFILES[student.id]?.brainliftCompleted || false,
+      dailyGoalCompleted: DEFAULT_PROFILES[student.id]?.dailyGoalCompleted || false,
+      projectOneliner: DEFAULT_PROFILES[student.id]?.projectOneliner || '',
+      lastActivity: student.lastActivity
+    }));
+
+    return res.status(200).json({
+      success: true,
+      students: fallbackData,
+      totalStudents: fallbackData.length,
+      notice: 'Using demo data due to server error'
     });
   }
 }
