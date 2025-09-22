@@ -46,28 +46,48 @@ export default async function handler(req, res) {
       });
     }
 
-    // Merge with Simple Storage data to get persistent goal completions
-    const goalStatus = await SimpleStorage.getGoalStatus(studentIdNum);
+    // Get today's date
     const today = new Date().toISOString().split('T')[0];
     
-    console.log(`Profile API - Storage status for student ${studentIdNum}:`, goalStatus);
-    console.log(`Profile API - Profile from Sheets/Fallback:`, {
+    // Check if goals from Sheets were completed today
+    const sheetsBrainliftToday = profile.lastBrainliftDate && profile.lastBrainliftDate.startsWith(today);
+    const sheetsDailyGoalToday = profile.lastDailyGoalDate && profile.lastDailyGoalDate.startsWith(today);
+    
+    // Get Simple Storage data as fallback/override
+    const goalStatus = await SimpleStorage.getGoalStatus(studentIdNum);
+    const storageBrainliftToday = goalStatus.lastBrainliftDate && goalStatus.lastBrainliftDate.startsWith(today);
+    const storageDailyGoalToday = goalStatus.lastDailyGoalDate && goalStatus.lastDailyGoalDate.startsWith(today);
+    
+    console.log(`[Profile API] Student ${studentIdNum} - Today: ${today}`);
+    console.log(`[Profile API] From Sheets:`, {
       brainlift: profile.brainliftCompleted,
-      dailyGoal: profile.dailyGoalCompleted
+      brainliftDate: profile.lastBrainliftDate,
+      brainliftToday: sheetsBrainliftToday,
+      dailyGoal: profile.dailyGoalCompleted,
+      dailyGoalDate: profile.lastDailyGoalDate,
+      dailyGoalToday: sheetsDailyGoalToday
+    });
+    console.log(`[Profile API] From Storage:`, {
+      brainlift: goalStatus.brainliftCompleted,
+      brainliftDate: goalStatus.lastBrainliftDate,
+      brainliftToday: storageBrainliftToday,
+      dailyGoal: goalStatus.dailyGoalCompleted,
+      dailyGoalDate: goalStatus.lastDailyGoalDate,
+      dailyGoalToday: storageDailyGoalToday
     });
     
-    // Check if goals were completed today
-    const brainliftToday = goalStatus.lastBrainliftDate && goalStatus.lastBrainliftDate.startsWith(today);
-    const dailyGoalToday = goalStatus.lastDailyGoalDate && goalStatus.lastDailyGoalDate.startsWith(today);
-    
-    // Priority: Simple Storage (if today) > Sheets > Default
+    // Merge profile - show as completed only if completed TODAY
     const mergedProfile = {
       ...profile,
-      brainliftCompleted: brainliftToday ? goalStatus.brainliftCompleted : (profile.brainliftCompleted || false),
-      lastBrainliftDate: goalStatus.lastBrainliftDate || profile.lastBrainliftDate || null,
-      dailyGoalCompleted: dailyGoalToday ? goalStatus.dailyGoalCompleted : (profile.dailyGoalCompleted || false),
-      lastDailyGoalDate: goalStatus.lastDailyGoalDate || profile.lastDailyGoalDate || null,
-      totalPoints: goalStatus.totalPoints || 0
+      // Brainlift is completed if either Sheets or Storage says it was completed today
+      brainliftCompleted: (sheetsBrainliftToday && profile.brainliftCompleted) || 
+                         (storageBrainliftToday && goalStatus.brainliftCompleted),
+      lastBrainliftDate: profile.lastBrainliftDate || goalStatus.lastBrainliftDate || null,
+      // Daily Goal is completed if either Sheets or Storage says it was completed today
+      dailyGoalCompleted: (sheetsDailyGoalToday && profile.dailyGoalCompleted) || 
+                         (storageDailyGoalToday && goalStatus.dailyGoalCompleted),
+      lastDailyGoalDate: profile.lastDailyGoalDate || goalStatus.lastDailyGoalDate || null,
+      totalPoints: goalStatus.totalPoints || profile.points || 0
     };
     
     console.log(`Profile API - Final merged profile:`, {

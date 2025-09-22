@@ -66,19 +66,25 @@ export default async function handler(req, res) {
     
     // Save to Simple Storage (persists locally)
     const updatedStatus = await SimpleStorage.saveGoalStatus(studentIdNum, type, true);
-    console.log(`Updated ${type} for student ${studentIdNum} in storage:`, updatedStatus);
+    console.log(`[Complete API] Updated ${type} for student ${studentIdNum}:`, updatedStatus);
     
-    // Try to update in Google Sheets first
+    // Try to update in Google Sheets as primary storage
     let sheetsUpdated = false;
     let profileUpdated = false;
     
     try {
       const dbInitialized = await sheetsDB.initialize();
       if (dbInitialized) {
+        console.log(`[Complete API] Google Sheets initialized, updating profile...`);
+        
         // Get current profile first
         const currentProfile = await sheetsDB.getProfile(studentIdNum) || {};
+        console.log(`[Complete API] Current profile:`, {
+          brainlift: currentProfile.brainliftCompleted,
+          dailyGoal: currentProfile.dailyGoalCompleted
+        });
         
-        // Prepare update data
+        // Prepare update data - ensure we're updating the right fields
         const updateData = {
           ...currentProfile,
           dailyGoal: currentProfile.dailyGoal || 'Complete daily tasks',
@@ -86,33 +92,39 @@ export default async function handler(req, res) {
           projectOneliner: currentProfile.projectOneliner || 'Working on project'
         };
         
+        // Update based on type
         if (type === 'brainlift') {
-          updateData.brainliftCompleted = true;
+          updateData.brainliftCompleted = 'TRUE'; // Google Sheets uses string booleans
           updateData.lastBrainliftDate = today;
+          console.log(`[Complete API] Setting brainliftCompleted = TRUE`);
         } else {
-          updateData.dailyGoalCompleted = true;
+          updateData.dailyGoalCompleted = 'TRUE'; // Google Sheets uses string booleans
           updateData.lastDailyGoalDate = today;
+          console.log(`[Complete API] Setting dailyGoalCompleted = TRUE`);
         }
         
         profileUpdated = await sheetsDB.updateProfile(studentIdNum, updateData);
-        console.log(`Profile update result for ${type}:`, profileUpdated ? 'SUCCESS' : 'FAILED');
+        console.log(`[Complete API] Profile update result:`, profileUpdated ? 'SUCCESS' : 'FAILED');
         
         // Also update points
         if (profileUpdated) {
-          const student = await sheetsDB.getStudent(studentIdNum);
+          const student = await sheetsDB.getStudentById(studentIdNum);
           if (student) {
             const pointsToAdd = type === 'brainlift' ? 10 : 5;
             await sheetsDB.updateStudent(studentIdNum, {
               points: (student.points || 0) + pointsToAdd,
               lastActivity: today
             });
+            console.log(`[Complete API] Added ${pointsToAdd} points`);
           }
           sheetsUpdated = true;
         }
+      } else {
+        console.log(`[Complete API] Google Sheets not initialized, using fallback storage`);
       }
     } catch (error) {
-      console.error('Error updating in Sheets:', error.message);
-      console.log('Using memory store as fallback');
+      console.error('[Complete API] Error updating in Sheets:', error.message);
+      console.log('[Complete API] Using memory store as fallback');
     }
 
     // Return success with the updated status

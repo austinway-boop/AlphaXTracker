@@ -62,10 +62,12 @@ export default function StudentDashboard() {
       const data = await response.json();
       if (data.success) {
         const profileData = data.profile || {};
-        // Check if Brainlift and Daily Goal were completed today
-        const today = new Date().toISOString().split('T')[0];
-        const isBrainliftCompletedToday = profileData.lastBrainliftDate === today;
-        const isDailyGoalCompletedToday = profileData.lastDailyGoalDate === today;
+        console.log(`[Dashboard] Fetched profile:`, {
+          brainlift: profileData.brainliftCompleted,
+          brainliftDate: profileData.lastBrainliftDate,
+          dailyGoal: profileData.dailyGoalCompleted,
+          dailyGoalDate: profileData.lastDailyGoalDate
+        });
         
         const newProfile = {
           goals: profileData.goals || {},
@@ -73,9 +75,10 @@ export default function StudentDashboard() {
           dailyGoal: profileData.dailyGoal || '',
           sessionGoal: profileData.sessionGoal || '',
           projectOneliner: profileData.projectOneliner || '',
-          brainliftCompleted: isBrainliftCompletedToday,
+          // Use the backend's determination of completion status
+          brainliftCompleted: profileData.brainliftCompleted || false,
           lastBrainliftDate: profileData.lastBrainliftDate || null,
-          dailyGoalCompleted: isDailyGoalCompletedToday,
+          dailyGoalCompleted: profileData.dailyGoalCompleted || false,
           lastDailyGoalDate: profileData.lastDailyGoalDate || null
         };
         
@@ -511,8 +514,9 @@ export default function StudentDashboard() {
 // Overview Tab Component - New main dashboard
 function OverviewTab({ profile, setProfile, onSave, saving, user, showNotification, fetchProfile }) {
   const today = new Date().toISOString().split('T')[0];
-  const isBrainliftCompletedToday = profile.lastBrainliftDate === today;
-  const isDailyGoalCompletedToday = profile.lastDailyGoalDate === today;
+  // Use the profile's completion status directly - backend determines if it's for today
+  const isBrainliftCompletedToday = profile.brainliftCompleted || false;
+  const isDailyGoalCompletedToday = profile.dailyGoalCompleted || false;
   const [currentQuote, setCurrentQuote] = useState('');
   const [checkChart, setCheckChart] = useState(null);
   const [checkChartLoading, setCheckChartLoading] = useState(true);
@@ -667,6 +671,7 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
 
   const handleBrainliftToggle = async () => {
     const newValue = !isBrainliftCompletedToday;
+    console.log(`[Dashboard] Brainlift toggle: ${isBrainliftCompletedToday} -> ${newValue}`);
     
     // Update UI immediately
     setProfile(prev => ({
@@ -695,14 +700,23 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
       
       if (data.success) {
         showNotification('Brainlift status updated successfully!', 'success');
-        // Update state with server response to ensure consistency
+        console.log(`[Dashboard] Brainlift save response:`, data.updatedStatus);
+        
+        // Only update if the server confirms it's saved
         if (data.updatedStatus) {
-          setProfile(prev => ({
-            ...prev,
-            brainliftCompleted: data.updatedStatus.brainliftCompleted,
-            lastBrainliftDate: data.updatedStatus.lastBrainliftDate,
-            totalPoints: data.updatedStatus.totalPoints || prev.totalPoints
-          }));
+          setProfile(prev => {
+            const updated = {
+              ...prev,
+              brainliftCompleted: data.updatedStatus.brainliftCompleted || true,
+              lastBrainliftDate: data.updatedStatus.lastBrainliftDate || new Date().toISOString(),
+              totalPoints: data.updatedStatus.totalPoints || prev.totalPoints
+            };
+            console.log(`[Dashboard] Updated profile state:`, {
+              brainlift: updated.brainliftCompleted,
+              date: updated.lastBrainliftDate
+            });
+            return updated;
+          });
         }
       } else {
         throw new Error(data.message);
@@ -724,6 +738,7 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
 
   const handleDailyGoalToggle = async () => {
     const newValue = !isDailyGoalCompletedToday;
+    console.log(`[Dashboard] Daily Goal toggle: ${isDailyGoalCompletedToday} -> ${newValue}`);
     
     // Update UI immediately
     setProfile(prev => ({
@@ -753,14 +768,23 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
       
       if (data.success) {
         showNotification('Daily Goal status updated successfully!', 'success');
-        // Update state with server response to ensure consistency
+        console.log(`[Dashboard] Daily Goal save response:`, data.updatedStatus);
+        
+        // Only update if the server confirms it's saved
         if (data.updatedStatus) {
-          setProfile(prev => ({
-            ...prev,
-            dailyGoalCompleted: data.updatedStatus.dailyGoalCompleted,
-            lastDailyGoalDate: data.updatedStatus.lastDailyGoalDate,
-            totalPoints: data.updatedStatus.totalPoints || prev.totalPoints
-          }));
+          setProfile(prev => {
+            const updated = {
+              ...prev,
+              dailyGoalCompleted: data.updatedStatus.dailyGoalCompleted || true,
+              lastDailyGoalDate: data.updatedStatus.lastDailyGoalDate || new Date().toISOString(),
+              totalPoints: data.updatedStatus.totalPoints || prev.totalPoints
+            };
+            console.log(`[Dashboard] Updated profile state:`, {
+              dailyGoal: updated.dailyGoalCompleted,
+              date: updated.lastDailyGoalDate
+            });
+            return updated;
+          });
         }
       } else {
         throw new Error(data.message);
