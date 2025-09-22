@@ -1,6 +1,6 @@
 const sheetsDB = require('../../../../lib/sheets-database');
 const { DEFAULT_PROFILES, DEFAULT_STUDENTS } = require('../../../../lib/fallback-data');
-const VercelStorage = require('../../../../lib/vercel-storage');
+const SimpleStorage = require('../../../../lib/simple-storage');
 
 export default async function handler(req, res) {
   const { studentId } = req.query;
@@ -44,8 +44,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get completion status from Vercel Storage (persists across deployments)
-    const goalStatus = await VercelStorage.getGoalStatus(studentIdNum);
+    // Get completion status from Simple Storage (persists locally)
+    const goalStatus = await SimpleStorage.getGoalStatus(studentIdNum);
     const today = new Date().toISOString().split('T')[0];
     
     // Merge memory store status with profile data

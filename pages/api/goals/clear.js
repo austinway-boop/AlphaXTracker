@@ -2,7 +2,7 @@
  * API to clear goal completion status (for testing/reset)
  */
 
-const VercelStorage = require('../../../lib/vercel-storage');
+const SimpleStorage = require('../../../lib/simple-storage');
 const sheetsDB = require('../../../lib/sheets-database');
 
 export default async function handler(req, res) {
@@ -25,9 +25,9 @@ export default async function handler(req, res) {
 
     const studentIdNum = parseInt(studentId);
     
-    // Clear from Vercel Storage
-    await VercelStorage.saveGoalStatus(studentIdNum, 'brainlift', false);
-    await VercelStorage.saveGoalStatus(studentIdNum, 'dailyGoal', false);
+    // Clear from Simple Storage
+    await SimpleStorage.saveGoalStatus(studentIdNum, 'brainlift', false);
+    await SimpleStorage.saveGoalStatus(studentIdNum, 'dailyGoal', false);
     
     // Clear from Google Sheets
     try {

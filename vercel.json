@@ -3,10 +3,5 @@
     "pages/api/**/*.js": {
       "maxDuration": 30
     }
-  },
-  "env": {
-    "KV_REST_API_URL": "@data_kv_rest_api_url",
-    "KV_REST_API_TOKEN": "@data_kv_rest_api_token",
-    "KV_REST_API_READ_ONLY_TOKEN": "@data_kv_rest_api_read_only_token"
   }
 }

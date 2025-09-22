@@ -1,6 +1,6 @@
 const sheetsDB = require('../../../lib/sheets-database');
 const { DEFAULT_STUDENTS, DEFAULT_PROFILES } = require('../../../lib/fallback-data');
-const VercelStorage = require('../../../lib/vercel-storage');
+const SimpleStorage = require('../../../lib/simple-storage');
 
 export default async function handler(req, res) {
   try {
@@ -46,15 +46,15 @@ export default async function handler(req, res) {
       });
     }
 
-    // Merge with Vercel Storage data to get persistent goal completions
-    const goalStatus = await VercelStorage.getGoalStatus(studentIdNum);
-    console.log(`Profile API - Vercel Storage status for student ${studentIdNum}:`, goalStatus);
+    // Merge with Simple Storage data to get persistent goal completions
+    const goalStatus = await SimpleStorage.getGoalStatus(studentIdNum);
+    console.log(`Profile API - Storage status for student ${studentIdNum}:`, goalStatus);
     console.log(`Profile API - Profile from Sheets/Fallback:`, {
       brainlift: profile.brainliftCompleted,
       dailyGoal: profile.dailyGoalCompleted
     });
     
-    // Priority: Vercel Storage > Sheets > Default
+    // Priority: Simple Storage > Sheets > Default
     const mergedProfile = {
       ...profile,
       brainliftCompleted: goalStatus.brainliftCompleted || profile.brainliftCompleted || false,
