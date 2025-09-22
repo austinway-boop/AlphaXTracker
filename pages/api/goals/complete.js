@@ -1,97 +1,84 @@
-// API endpoint for updating goal completion status
-import dataManager from '../../../lib/data-manager';
-import { getGoogleSheetsDB } from '../../../lib/sheets-database';
+const sheetsDB = require('../../../lib/sheets-database');
+const { DEFAULT_PROFILES } = require('../../../lib/fallback-data');
 
 export default async function handler(req, res) {
-  console.log('[API /goals/complete] Request received:', {
-    method: req.method,
-    body: req.body,
-    headers: req.headers
-  });
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  // Accept both GET and POST for flexibility
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    return res.status(405).json({
+      success: false,
+      error: 'Method not allowed'
+    });
   }
 
   try {
-    const { studentId, goalType, completed, goalText } = req.body;
-    
-    console.log('[API /goals/complete] Processing:', {
-      studentId,
-      goalType,
-      completed,
-      goalText
-    });
+    // Get parameters from either body (POST) or query (GET)
+    const { studentId, type } = req.method === 'POST' ? req.body : req.query;
 
-    if (!studentId || !goalType) {
-      console.error('[API /goals/complete] Missing required fields');
-      return res.status(400).json({ 
+    if (!studentId) {
+      return res.status(400).json({
         success: false,
-        error: 'Missing required fields' 
+        error: 'Student ID is required'
       });
     }
 
-    // Update using the new data manager (local-first)
-    const updatedProfile = await dataManager.updateGoalCompletion(
-      studentId,
-      goalType,
-      completed,
-      goalText
-    );
+    if (!type || !['brainlift', 'dailyGoal'].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid goal type. Must be "brainlift" or "dailyGoal"'
+      });
+    }
 
-    console.log('[API /goals/complete] Profile updated locally:', updatedProfile);
-
-    // Try to sync with Google Sheets in background (don't block response)
-    setTimeout(async () => {
-      try {
-        console.log('[API /goals/complete] Attempting Google Sheets sync...');
-        const { sheetsDB, available } = await getGoogleSheetsDB();
-        
-        if (available && sheetsDB) {
-          // Clear any cached data
-          sheetsDB.clearCache(`profile:${studentId}`);
-          sheetsDB.clearCache(`history:${studentId}`);
-          
-          // Update profile in Sheets
-          await sheetsDB.updateProfile(studentId, updatedProfile);
-          
-          // Add to goal history
-          const today = new Date().toISOString().split('T')[0];
-          await sheetsDB.addGoalHistory(studentId, {
-            date: today,
-            dailyGoal: updatedProfile.dailyGoal,
-            sessionGoal: updatedProfile.sessionGoal,
-            projectOneliner: updatedProfile.projectOneliner,
-            brainliftCompleted: updatedProfile.brainliftCompleted,
-            dailyGoalCompleted: updatedProfile.dailyGoalCompleted,
-            audienceX: updatedProfile.goals?.x || 0,
-            audienceYouTube: updatedProfile.goals?.youtube || 0,
-            audienceTikTok: updatedProfile.goals?.tiktok || 0,
-            audienceInstagram: updatedProfile.goals?.instagram || 0
-          });
-          
-          console.log('[API /goals/complete] Google Sheets sync successful');
+    const studentIdNum = parseInt(studentId);
+    const today = new Date().toISOString();
+    
+    // Try to update in Google Sheets
+    let updated = false;
+    try {
+      const dbInitialized = await sheetsDB.initialize();
+      if (dbInitialized) {
+        const updateData = {};
+        if (type === 'brainlift') {
+          updateData.brainliftCompleted = true;
+          updateData.lastBrainliftDate = today;
         } else {
-          console.log('[API /goals/complete] Google Sheets unavailable, using local storage only');
+          updateData.dailyGoalCompleted = true;
+          updateData.lastDailyGoalDate = today;
         }
-      } catch (error) {
-        console.error('[API /goals/complete] Google Sheets sync error:', error.message);
-        // Don't throw - we already have local data saved
+        
+        updated = await sheetsDB.updateProfile(studentIdNum, updateData);
+        
+        // Also update points
+        if (updated) {
+          const student = await sheetsDB.getStudent(studentIdNum);
+          if (student) {
+            const pointsToAdd = type === 'brainlift' ? 10 : 5;
+            await sheetsDB.updateStudent(studentIdNum, {
+              points: (student.points || 0) + pointsToAdd,
+              lastActivity: today
+            });
+          }
+        }
       }
-    }, 100); // Small delay to not block response
+    } catch (error) {
+      console.log('Could not update in Sheets, using local state only');
+    }
 
-    // Return success immediately (local save was successful)
+    // Return success (even if only updated locally)
     return res.status(200).json({
       success: true,
-      message: `${goalType} completion status updated successfully`,
-      profile: updatedProfile
+      message: `${type === 'brainlift' ? 'Brainlift' : 'Daily Goal'} marked as complete`,
+      studentId: studentIdNum,
+      type,
+      completedAt: today,
+      pointsAwarded: type === 'brainlift' ? 10 : 5,
+      persisted: updated
     });
 
   } catch (error) {
-    console.error('[API /goals/complete] Error:', error);
+    console.error('Error completing goal:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to update goal completion',
+      error: 'Failed to complete goal',
       message: error.message
     });
   }

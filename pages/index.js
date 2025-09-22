@@ -38,19 +38,9 @@ export default function Home() {
 
       <div style={styles.infoGrid}>
         <div style={styles.infoCard}>
-          <h3 style={styles.cardTitle}>👨‍💼 Admin Access</h3>
-          <div style={styles.credentials}>
-            <code>Admin@Alpha.school</code>
-            <code>FutureOfEducation</code>
-          </div>
-        </div>
-
-        <div style={styles.infoCard}>
-          <h3 style={styles.cardTitle}>🎓 Demo Student</h3>
-          <div style={styles.credentials}>
-            <code>demo@alpha.school</code>
-            <code>demo123</code>
-          </div>
+          <h3 style={styles.cardTitle}>🎓 45+ Students</h3>
+          <p style={{ margin: '10px 0' }}>Login with your Alpha School credentials</p>
+          <p style={{ fontSize: '14px', opacity: 0.8 }}>firstname.lastname@alpha.school</p>
         </div>
 
         <div style={styles.infoCard}>
@@ -58,9 +48,16 @@ export default function Home() {
           <ul style={styles.featureList}>
             <li>✓ Student Management</li>
             <li>✓ Progress Tracking</li>
-            <li>✓ Social Media Monitoring</li>
-            <li>✓ Google Sheets Integration</li>
+            <li>✓ Goal Monitoring</li>
+            <li>✓ Social Media Tracking</li>
+            <li>✓ Points & Leaderboard</li>
           </ul>
+        </div>
+
+        <div style={styles.infoCard}>
+          <h3 style={styles.cardTitle}>🚀 Getting Started</h3>
+          <p style={{ margin: '10px 0' }}>Click "Go to Login" to access your dashboard</p>
+          <p style={{ fontSize: '14px', opacity: 0.8 }}>Contact admin for credentials</p>
         </div>
       </div>
 

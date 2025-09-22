@@ -1,125 +1,124 @@
-/**
- * API endpoint for students to view their check chart and progress
- * Students can only view, not edit
- */
-
-const sheetsDb = require('../../../lib/sheets-database');
+const sheetsDB = require('../../../lib/sheets-database');
+const { DEFAULT_STUDENTS, DEFAULT_PROFILES } = require('../../../lib/fallback-data');
 
 export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ 
+      success: false,
+      error: 'Method not allowed' 
+    });
+  }
+
   try {
-    // Initialize sheets database
-    const initialized = await sheetsDb.initialize();
-    if (!initialized) {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to initialize database'
-      });
-    }
+    let students = [];
+    let usingFallback = false;
 
-    if (req.method !== 'GET') {
-      res.setHeader('Allow', ['GET']);
-      return res.status(405).json({
-        success: false,
-        error: 'Method not allowed'
-      });
-    }
-
-    // Check authentication
-    const authToken = req.headers.authorization?.replace('Bearer ', '');
-    const userRole = req.headers['x-user-role'];
-    const studentId = req.headers['x-student-id'];
-
-    if (!authToken) {
-      return res.status(401).json({
-        success: false,
-        error: 'Unauthorized - Authentication required'
-      });
-    }
-
-    // For students, use their own ID from auth
-    // For admins, they can specify a student ID in query
-    let targetStudentId = studentId;
-    if (userRole === 'admin' && req.query.studentId) {
-      targetStudentId = req.query.studentId;
-    }
-
-    if (!targetStudentId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Student ID not found'
-      });
-    }
-
-    // Get student information to determine if honors
-    const student = await sheetsDb.getStudentById(targetStudentId);
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        error: 'Student not found'
-      });
-    }
-
-    // Get the appropriate check chart based on honors status
-    const chart = await sheetsDb.getCheckChart(student.honors);
-
-    // Get student's progress
-    const progress = await sheetsDb.getStudentCheckProgress(targetStudentId);
-    const chartType = student.honors ? 'honors' : 'nonhonors';
-    const studentProgress = progress.filter(p => p.chartType === chartType);
-
-    // Create a map of completed tasks
-    const completedTasks = {};
-    let totalPointsEarned = 0;
-    studentProgress.forEach(p => {
-      if (p.completed) {
-        completedTasks[p.taskId] = {
-          completed: true,
-          completedDate: p.completedDate,
-          completedBy: p.completedBy
-        };
-        totalPointsEarned += p.points || 0;
+    // Try Google Sheets first
+    try {
+      const dbInitialized = await sheetsDB.initialize();
+      if (dbInitialized) {
+        students = await sheetsDB.getAllStudents();
+        
+        // Get profiles for each student
+        for (let student of students) {
+          const profile = await sheetsDB.getProfile(student.id);
+          if (profile) {
+            student.profile = profile;
+          }
+        }
       }
+    } catch (error) {
+      console.log('Google Sheets unavailable, using fallback data');
+      usingFallback = true;
+    }
+
+    // Use fallback data if needed
+    if (!students || students.length === 0 || usingFallback) {
+      students = DEFAULT_STUDENTS.map(student => ({
+        ...student,
+        profile: DEFAULT_PROFILES[student.id] || {}
+      }));
+      usingFallback = true;
+    }
+
+    // Format data for checkchart
+    const checkchartData = students.map(student => {
+      const profile = student.profile || {};
+      return {
+        id: student.id,
+        name: student.fullName || `${student.firstName} ${student.lastName}`,
+        email: student.email,
+        status: student.honors ? 'Honors' : 'Regular',
+        points: student.points || 0,
+        dailyGoal: profile.dailyGoal || 10,
+        sessionGoal: profile.sessionGoal || 100,
+        brainliftCompleted: profile.brainliftCompleted || false,
+        dailyGoalCompleted: profile.dailyGoalCompleted || false,
+        projectOneliner: profile.projectOneliner || 'Working on project',
+        lastActivity: student.lastActivity || null,
+        platforms: {
+          x: {
+            goal: profile.goalX || 3,
+            handle: profile.platformX || `@${student.firstName?.toLowerCase()}`
+          },
+          youtube: {
+            goal: profile.goalYouTube || 2,
+            handle: profile.platformYouTube || `${student.firstName?.toLowerCase()}_yt`
+          },
+          tiktok: {
+            goal: profile.goalTikTok || 2,
+            handle: profile.platformTikTok || `@${student.firstName?.toLowerCase()}`
+          },
+          instagram: {
+            goal: profile.goalInstagram || 2,
+            handle: profile.platformInstagram || `${student.firstName?.toLowerCase()}_ig`
+          }
+        }
+      };
     });
 
-    // Calculate total possible points and add completion status to tasks
-    let totalPossiblePoints = 0;
-    const enrichedChart = {
-      ...chart,
-      stages: chart.stages.map(stage => ({
-        ...stage,
-        topics: stage.topics.map(topic => ({
-          ...topic,
-          tasks: topic.tasks.map(task => {
-            totalPossiblePoints += task.points || 0;
-            return {
-              ...task,
-              completed: !!completedTasks[task.id],
-              completedInfo: completedTasks[task.id] || null
-            };
-          })
-        }))
-      }))
-    };
+    // Sort by points (highest first)
+    checkchartData.sort((a, b) => b.points - a.points);
 
     return res.status(200).json({
       success: true,
-      chart: enrichedChart,
-      summary: {
-        totalTasks: Object.keys(completedTasks).length,
-        totalPointsEarned,
-        totalPossiblePoints,
-        completionPercentage: totalPossiblePoints > 0 
-          ? Math.round((totalPointsEarned / totalPossiblePoints) * 100)
-          : 0,
-        isHonors: student.honors
-      }
+      students: checkchartData,
+      totalStudents: checkchartData.length,
+      timestamp: new Date().toISOString(),
+      ...(usingFallback && { 
+        notice: 'Using demo data. Configure Google Sheets for full functionality.' 
+      })
     });
 
   } catch (error) {
-    console.error('Student check chart API error:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || 'Internal server error'
+    console.error('Error in student checkchart:', error);
+    // Return fallback data even on error
+    const fallbackData = DEFAULT_STUDENTS.map(student => ({
+      id: student.id,
+      name: student.fullName,
+      email: student.email,
+      status: student.honors ? 'Honors' : 'Regular',
+      points: student.points || 0,
+      dailyGoal: DEFAULT_PROFILES[student.id]?.dailyGoal || 10,
+      sessionGoal: DEFAULT_PROFILES[student.id]?.sessionGoal || 100,
+      brainliftCompleted: false,
+      dailyGoalCompleted: false,
+      projectOneliner: DEFAULT_PROFILES[student.id]?.projectOneliner || 'Working on project',
+      lastActivity: student.lastActivity,
+      platforms: {
+        x: { goal: 3, handle: `@${student.firstName.toLowerCase()}` },
+        youtube: { goal: 2, handle: `${student.firstName.toLowerCase()}_yt` },
+        tiktok: { goal: 2, handle: `@${student.firstName.toLowerCase()}` },
+        instagram: { goal: 2, handle: `${student.firstName.toLowerCase()}_ig` }
+      }
+    }));
+
+    return res.status(200).json({
+      success: true,
+      students: fallbackData.sort((a, b) => b.points - a.points),
+      totalStudents: fallbackData.length,
+      timestamp: new Date().toISOString(),
+      notice: 'Using demo data due to server error'
     });
   }
 }
