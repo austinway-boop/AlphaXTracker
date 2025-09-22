@@ -23,9 +23,24 @@ export default async function handler(req, res) {
     // Initialize Sheets database
     const dbInitialized = await sheetsDB.initialize();
     if (!dbInitialized) {
+      const missingEnvVars = [];
+      if (!process.env.GOOGLE_SHEETS_CREDENTIALS) missingEnvVars.push('GOOGLE_SHEETS_CREDENTIALS');
+      if (!process.env.GOOGLE_SHEET_ID) missingEnvVars.push('GOOGLE_SHEET_ID');
+      if (!process.env.JWT_SECRET) missingEnvVars.push('JWT_SECRET');
+      
+      console.error('Database initialization failed - Missing environment variables:', missingEnvVars);
+      
       return res.status(500).json({
         success: false,
-        message: 'Database initialization failed. Please check Google Sheets configuration.'
+        message: 'Database configuration error',
+        error: 'Google Sheets connection failed',
+        details: {
+          missingVariables: missingEnvVars,
+          checkConfig: '/api/admin/check-config',
+          instructions: missingEnvVars.length > 0 
+            ? `Missing ${missingEnvVars.length} environment variable(s) in Vercel. Check /api/admin/check-config for details.`
+            : 'Environment variables present but configuration failed. Check server logs.'
+        }
       });
     }
 
