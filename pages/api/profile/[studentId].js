@@ -1,5 +1,6 @@
 const sheetsDB = require('../../../lib/sheets-database');
 const { DEFAULT_STUDENTS, DEFAULT_PROFILES } = require('../../../lib/fallback-data');
+const memoryStore = require('../../../lib/memory-store');
 
 export default async function handler(req, res) {
   const { studentId } = req.query;
@@ -42,10 +43,20 @@ export default async function handler(req, res) {
     });
   }
 
+  // Merge with memory store data to get current session's goal completions
+  const goalStatus = memoryStore.getGoalStatus(studentIdNum);
+  const mergedProfile = {
+    ...profile,
+    brainliftCompleted: goalStatus.brainliftCompleted || profile.brainliftCompleted || false,
+    lastBrainliftDate: goalStatus.lastBrainliftDate || profile.lastBrainliftDate || null,
+    dailyGoalCompleted: goalStatus.dailyGoalCompleted || profile.dailyGoalCompleted || false,
+    lastDailyGoalDate: goalStatus.lastDailyGoalDate || profile.lastDailyGoalDate || null
+  };
+
   return res.status(200).json({
     success: true,
     profile: {
-      ...profile,
+      ...mergedProfile,
       student: {
         id: student.id,
         firstName: student.firstName,

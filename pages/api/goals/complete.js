@@ -1,5 +1,6 @@
 const sheetsDB = require('../../../lib/sheets-database');
 const { DEFAULT_PROFILES } = require('../../../lib/fallback-data');
+const memoryStore = require('../../../lib/memory-store');
 
 export default async function handler(req, res) {
   // Accept both GET and POST for flexibility
@@ -63,7 +64,11 @@ export default async function handler(req, res) {
     const studentIdNum = parseInt(studentId);
     const today = new Date().toISOString();
     
-    // Try to update in Google Sheets
+    // Always update in memory store (persists during session)
+    const updatedStatus = memoryStore.updateGoalStatus(studentIdNum, type, true);
+    console.log(`Updated ${type} for student ${studentIdNum} in memory store:`, updatedStatus);
+    
+    // Try to update in Google Sheets as well
     let updated = false;
     try {
       const dbInitialized = await sheetsDB.initialize();
@@ -92,7 +97,7 @@ export default async function handler(req, res) {
         }
       }
     } catch (error) {
-      console.log('Could not update in Sheets, using local state only');
+      console.log('Could not update in Sheets, using memory store only');
     }
 
     // Return success (even if only updated locally)

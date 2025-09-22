@@ -1,5 +1,6 @@
 const sheetsDB = require('../../../../lib/sheets-database');
 const { DEFAULT_PROFILES, DEFAULT_STUDENTS } = require('../../../../lib/fallback-data');
+const memoryStore = require('../../../../lib/memory-store');
 
 export default async function handler(req, res) {
   const { studentId } = req.query;
@@ -43,18 +44,21 @@ export default async function handler(req, res) {
       });
     }
 
-    // Calculate goal completion (mock data for now)
+    // Get completion status from memory store (persists during session)
+    const goalStatus = memoryStore.getGoalStatus(studentIdNum);
     const today = new Date().toISOString().split('T')[0];
+    
+    // Merge memory store status with profile data
     const goals = {
       dailyGoal: profile.dailyGoal || 10,
       sessionGoal: profile.sessionGoal || 100,
       brainlift: {
-        completed: profile.brainliftCompleted || false,
-        lastCompleted: profile.lastBrainliftDate || null
+        completed: goalStatus.brainliftCompleted || profile.brainliftCompleted || false,
+        lastCompleted: goalStatus.lastBrainliftDate || profile.lastBrainliftDate || null
       },
       dailyGoalCheck: {
-        completed: profile.dailyGoalCompleted || false,
-        lastCompleted: profile.lastDailyGoalDate || null
+        completed: goalStatus.dailyGoalCompleted || profile.dailyGoalCompleted || false,
+        lastCompleted: goalStatus.lastDailyGoalDate || profile.lastDailyGoalDate || null
       },
       platforms: {
         x: {
