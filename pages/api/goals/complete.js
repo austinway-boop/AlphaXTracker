@@ -12,19 +12,51 @@ export default async function handler(req, res) {
 
   try {
     // Get parameters from either body (POST) or query (GET)
-    const { studentId, type } = req.method === 'POST' ? req.body : req.query;
+    // Also check for variations in parameter names
+    let studentId, type;
+    
+    if (req.method === 'POST') {
+      studentId = req.body.studentId || req.body.student_id || req.body.id;
+      type = req.body.type || req.body.goalType || req.body.goal_type;
+    } else {
+      studentId = req.query.studentId || req.query.student_id || req.query.id;
+      type = req.query.type || req.query.goalType || req.query.goal_type;
+    }
+
+    // Log for debugging
+    console.log('Goals complete request:', { method: req.method, studentId, type, body: req.body, query: req.query });
 
     if (!studentId) {
       return res.status(400).json({
         success: false,
-        error: 'Student ID is required'
+        error: 'Student ID is required',
+        received: { body: req.body, query: req.query }
       });
     }
 
-    if (!type || !['brainlift', 'dailyGoal'].includes(type)) {
+    // Normalize type variations - handle exact matches first
+    if (type === 'brainlift' || type === 'dailyGoal') {
+      // Already in correct format
+    } else if (type) {
+      const typeLower = type.toLowerCase();
+      // Handle variations
+      if (typeLower === 'daily' || typeLower === 'daily_goal' || typeLower === 'dailygoal') {
+        type = 'dailyGoal';
+      } else if (typeLower === 'brainlift' || typeLower === 'brain' || typeLower === 'brain_lift') {
+        type = 'brainlift';
+      } else {
+        // Unknown type
+        type = null;
+      }
+    }
+
+    if (!type) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid goal type. Must be "brainlift" or "dailyGoal"'
+        error: 'Goal type is required. Must be "brainlift" or "dailyGoal"',
+        received: req.body.goalType || req.body.type || req.query.type,
+        validTypes: ['brainlift', 'dailyGoal'],
+        requestData: { body: req.body, query: req.query }
       });
     }
 
