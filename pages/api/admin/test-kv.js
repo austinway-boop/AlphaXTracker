@@ -43,8 +43,9 @@ export default async function handler(req, res) {
       testGoalGet: goalStatus,
       todayCompletions: Object.keys(todayCompletions).length,
       environment: {
-        hasKvUrl: !!process.env.KV_REST_API_URL,
-        hasKvToken: !!process.env.KV_REST_API_TOKEN
+        hasKvUrl: !!(process.env.KV_REST_API_URL || process.env.Data_KV_REST_API_URL),
+        hasKvToken: !!(process.env.KV_REST_API_TOKEN || process.env.Data_KV_REST_API_TOKEN),
+        kvUrl: process.env.Data_KV_REST_API_URL ? 'Data_KV_REST_API_URL' : 'KV_REST_API_URL'
       }
     });
   } catch (error) {
@@ -54,8 +55,9 @@ export default async function handler(req, res) {
       error: error.message,
       kvAvailable: VercelStorage.isKVAvailable(),
       environment: {
-        hasKvUrl: !!process.env.KV_REST_API_URL,
-        hasKvToken: !!process.env.KV_REST_API_TOKEN
+        hasKvUrl: !!(process.env.KV_REST_API_URL || process.env.Data_KV_REST_API_URL),
+        hasKvToken: !!(process.env.KV_REST_API_TOKEN || process.env.Data_KV_REST_API_TOKEN),
+        kvUrl: process.env.Data_KV_REST_API_URL ? 'Data_KV_REST_API_URL' : 'KV_REST_API_URL'
       }
     });
   }

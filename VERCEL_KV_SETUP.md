@@ -19,13 +19,16 @@ Vercel KV is a serverless Redis database that's perfect for storing session data
 
 ### 2. Environment Variables
 
-Once KV is created, Vercel automatically adds these environment variables to your project:
+Once KV is created through Upstash, Vercel automatically adds these environment variables to your project:
 
-- `KV_REST_API_URL` - The URL for your KV database
-- `KV_REST_API_TOKEN` - Authentication token
-- `KV_REST_API_READ_ONLY_TOKEN` - Read-only token (optional)
+- `Data_KV_REST_API_URL` - The URL for your KV database
+- `Data_KV_REST_API_TOKEN` - Authentication token
+- `Data_KV_REST_API_READ_ONLY_TOKEN` - Read-only token (optional)
+- `Data_REDIS_URL` - Direct Redis connection URL
 
 **These are added automatically! No manual setup needed.**
+
+Note: The app automatically detects both `KV_` and `Data_KV_` prefixes.
 
 ### 3. How It Works
 
