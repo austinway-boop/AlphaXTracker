@@ -1,6 +1,6 @@
 const sheetsDB = require('../../../lib/sheets-database');
 const { DEFAULT_PROFILES } = require('../../../lib/fallback-data');
-const memoryStore = require('../../../lib/memory-store');
+const VercelStorage = require('../../../lib/vercel-storage');
 
 export default async function handler(req, res) {
   // Accept both GET and POST for flexibility
@@ -64,9 +64,9 @@ export default async function handler(req, res) {
     const studentIdNum = parseInt(studentId);
     const today = new Date().toISOString();
     
-    // Always update in memory store (persists during session)
-    const updatedStatus = memoryStore.updateGoalStatus(studentIdNum, type, true);
-    console.log(`Updated ${type} for student ${studentIdNum} in memory store:`, updatedStatus);
+    // Save to Vercel KV Storage (persists across deployments)
+    const updatedStatus = await VercelStorage.saveGoalStatus(studentIdNum, type, true);
+    console.log(`Updated ${type} for student ${studentIdNum} in Vercel Storage:`, updatedStatus);
     
     // Try to update in Google Sheets first
     let sheetsUpdated = false;

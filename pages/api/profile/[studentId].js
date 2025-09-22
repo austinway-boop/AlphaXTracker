@@ -1,6 +1,6 @@
 const sheetsDB = require('../../../lib/sheets-database');
 const { DEFAULT_STUDENTS, DEFAULT_PROFILES } = require('../../../lib/fallback-data');
-const memoryStore = require('../../../lib/memory-store');
+const VercelStorage = require('../../../lib/vercel-storage');
 
 export default async function handler(req, res) {
   try {
@@ -46,26 +46,28 @@ export default async function handler(req, res) {
       });
     }
 
-    // Merge with memory store data to get current session's goal completions
-    const goalStatus = memoryStore.getGoalStatus(studentIdNum);
-    console.log(`Profile API - Memory store status for student ${studentIdNum}:`, goalStatus);
+    // Merge with Vercel Storage data to get persistent goal completions
+    const goalStatus = await VercelStorage.getGoalStatus(studentIdNum);
+    console.log(`Profile API - Vercel Storage status for student ${studentIdNum}:`, goalStatus);
     console.log(`Profile API - Profile from Sheets/Fallback:`, {
       brainlift: profile.brainliftCompleted,
       dailyGoal: profile.dailyGoalCompleted
     });
     
-    // Priority: Memory store > Sheets > Default
+    // Priority: Vercel Storage > Sheets > Default
     const mergedProfile = {
       ...profile,
       brainliftCompleted: goalStatus.brainliftCompleted || profile.brainliftCompleted || false,
       lastBrainliftDate: goalStatus.lastBrainliftDate || profile.lastBrainliftDate || null,
       dailyGoalCompleted: goalStatus.dailyGoalCompleted || profile.dailyGoalCompleted || false,
-      lastDailyGoalDate: goalStatus.lastDailyGoalDate || profile.lastDailyGoalDate || null
+      lastDailyGoalDate: goalStatus.lastDailyGoalDate || profile.lastDailyGoalDate || null,
+      totalPoints: goalStatus.totalPoints || 0
     };
     
     console.log(`Profile API - Final merged profile:`, {
       brainlift: mergedProfile.brainliftCompleted,
-      dailyGoal: mergedProfile.dailyGoalCompleted
+      dailyGoal: mergedProfile.dailyGoalCompleted,
+      points: mergedProfile.totalPoints
     });
 
     return res.status(200).json({
