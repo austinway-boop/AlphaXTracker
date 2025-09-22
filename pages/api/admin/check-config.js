@@ -3,7 +3,7 @@
  * GET /api/admin/check-config
  */
 
-import { SheetsDatabase } from '../../../lib/sheets-database';
+const sheetsDB = require('../../../lib/sheets-database');
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -61,19 +61,18 @@ export default async function handler(req, res) {
 
   // Test Google Sheets connection
   try {
-    const db = new SheetsDatabase();
-    const initialized = await db.initialize();
+    const initialized = await sheetsDB.initialize();
     
     diagnostics.checks.googleSheets = {
       status: initialized ? 'ok' : 'error',
       initialized,
-      spreadsheetId: db.spreadsheetId
+      spreadsheetId: process.env.GOOGLE_SHEET_ID || 'Not set'
     };
 
     if (initialized) {
       // Try a simple read operation
       try {
-        const students = await db.getStudents();
+        const students = await sheetsDB.getStudents();
         diagnostics.checks.googleSheets.canRead = true;
         diagnostics.checks.googleSheets.studentCount = students.length;
       } catch (readError) {

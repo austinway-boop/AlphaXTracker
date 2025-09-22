@@ -40,3 +40,4 @@ credentials.json
 
 # Vercel environment values (contains sensitive data)
 VERCEL_ENV_VALUES.md
+GOOGLE_SHEETS_CREDENTIALS.txt
