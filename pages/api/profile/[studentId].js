@@ -48,18 +48,24 @@ export default async function handler(req, res) {
 
     // Merge with Simple Storage data to get persistent goal completions
     const goalStatus = await SimpleStorage.getGoalStatus(studentIdNum);
+    const today = new Date().toISOString().split('T')[0];
+    
     console.log(`Profile API - Storage status for student ${studentIdNum}:`, goalStatus);
     console.log(`Profile API - Profile from Sheets/Fallback:`, {
       brainlift: profile.brainliftCompleted,
       dailyGoal: profile.dailyGoalCompleted
     });
     
-    // Priority: Simple Storage > Sheets > Default
+    // Check if goals were completed today
+    const brainliftToday = goalStatus.lastBrainliftDate && goalStatus.lastBrainliftDate.startsWith(today);
+    const dailyGoalToday = goalStatus.lastDailyGoalDate && goalStatus.lastDailyGoalDate.startsWith(today);
+    
+    // Priority: Simple Storage (if today) > Sheets > Default
     const mergedProfile = {
       ...profile,
-      brainliftCompleted: goalStatus.brainliftCompleted || profile.brainliftCompleted || false,
+      brainliftCompleted: brainliftToday ? goalStatus.brainliftCompleted : (profile.brainliftCompleted || false),
       lastBrainliftDate: goalStatus.lastBrainliftDate || profile.lastBrainliftDate || null,
-      dailyGoalCompleted: goalStatus.dailyGoalCompleted || profile.dailyGoalCompleted || false,
+      dailyGoalCompleted: dailyGoalToday ? goalStatus.dailyGoalCompleted : (profile.dailyGoalCompleted || false),
       lastDailyGoalDate: goalStatus.lastDailyGoalDate || profile.lastDailyGoalDate || null,
       totalPoints: goalStatus.totalPoints || 0
     };

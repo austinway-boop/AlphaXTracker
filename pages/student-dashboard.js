@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import ClientStorage from '../lib/client-storage';
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -68,7 +67,7 @@ export default function StudentDashboard() {
         const isBrainliftCompletedToday = profileData.lastBrainliftDate === today;
         const isDailyGoalCompletedToday = profileData.lastDailyGoalDate === today;
         
-        let newProfile = {
+        const newProfile = {
           goals: profileData.goals || {},
           platforms: profileData.platforms || {},
           dailyGoal: profileData.dailyGoal || '',
@@ -79,9 +78,6 @@ export default function StudentDashboard() {
           dailyGoalCompleted: isDailyGoalCompletedToday,
           lastDailyGoalDate: profileData.lastDailyGoalDate || null
         };
-        
-        // Merge with local storage to preserve client-side state
-        newProfile = ClientStorage.mergeWithProfile(newProfile, studentId);
         
         setProfile(newProfile);
       }
@@ -679,10 +675,7 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
       lastBrainliftDate: newValue ? today : null
     }));
     
-    // Save to local storage for persistence
-    ClientStorage.saveGoalStatus(user.id, 'brainlift', newValue);
-    
-    // Save to backend and sync with Sheets
+    // Save to backend (server-side persistence)
     try {
       const response = await fetch('/api/goals/complete', {
         method: 'POST',
@@ -702,8 +695,15 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
       
       if (data.success) {
         showNotification('Brainlift status updated successfully!', 'success');
-        // Don't re-fetch profile immediately - causes checkbox to uncheck
-        // The state is already updated locally
+        // Update state with server response to ensure consistency
+        if (data.updatedStatus) {
+          setProfile(prev => ({
+            ...prev,
+            brainliftCompleted: data.updatedStatus.brainliftCompleted,
+            lastBrainliftDate: data.updatedStatus.lastBrainliftDate,
+            totalPoints: data.updatedStatus.totalPoints || prev.totalPoints
+          }));
+        }
       } else {
         throw new Error(data.message);
       }
@@ -732,10 +732,7 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
       lastDailyGoalDate: newValue ? today : null
     }));
     
-    // Save to local storage for persistence
-    ClientStorage.saveGoalStatus(user.id, 'dailyGoal', newValue);
-    
-    // Save to backend and sync with Sheets
+    // Save to backend (server-side persistence)
     try {
       const response = await fetch('/api/goals/complete', {
         method: 'POST',
@@ -756,8 +753,15 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
       
       if (data.success) {
         showNotification('Daily Goal status updated successfully!', 'success');
-        // Don't re-fetch profile immediately - causes checkbox to uncheck
-        // The state is already updated locally
+        // Update state with server response to ensure consistency
+        if (data.updatedStatus) {
+          setProfile(prev => ({
+            ...prev,
+            dailyGoalCompleted: data.updatedStatus.dailyGoalCompleted,
+            lastDailyGoalDate: data.updatedStatus.lastDailyGoalDate,
+            totalPoints: data.updatedStatus.totalPoints || prev.totalPoints
+          }));
+        }
       } else {
         throw new Error(data.message);
       }
