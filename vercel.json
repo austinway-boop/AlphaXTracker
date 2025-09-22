@@ -3,11 +3,5 @@
     "pages/api/**/*.js": {
       "maxDuration": 30
     }
-  },
-  "env": {
-    "SLACK_BOT_TOKEN": "@slack_bot_token",
-    "SLACK_REFRESH_TOKEN": "@slack_refresh_token",
-    "SLACK_CLIENT_ID": "@slack_client_id",
-    "SLACK_CLIENT_SECRET": "@slack_client_secret"
   }
 }
