@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Admin Dashboard</title>
+</head>
+<body>
+    <h1>Test Admin Dashboard</h1>
+    <p>Note: Make sure your Next.js server is running. Default port is 3000, but it may use 3001, 3002, etc. if those are busy.</p>
+    <div style="margin: 20px 0;">
+        <label for="portInput">Server Port: </label>
+        <input type="number" id="portInput" value="3000" style="width: 80px;">
+    </div>
+    <button onclick="testLogin()">1. Login as Admin</button>
+    <button onclick="goToDashboard()">2. Go to Dashboard</button>
+    <button onclick="testEditStudent()">3. Test Edit Student API</button>
+    
+    <div id="result"></div>
+
+    <script>
+        function getBaseUrl() {
+            const port = document.getElementById('portInput').value || '3000';
+            return `http://localhost:${port}`;
+        }
+
+        async function testLogin() {
+            const response = await fetch(`${getBaseUrl()}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: 'Admin@Alpha.school',
+                    password: 'FutureOfEducation'
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('userRole', 'admin');
+                document.getElementById('result').innerHTML = 'Login successful! Token saved.';
+            } else {
+                document.getElementById('result').innerHTML = 'Login failed: ' + data.message;
+            }
+        }
+
+        function goToDashboard() {
+            window.location.href = `${getBaseUrl()}/dashboard`;
+        }
+
+        async function testEditStudent() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                document.getElementById('result').innerHTML = 'Please login first!';
+                return;
+            }
+
+            const response = await fetch(`${getBaseUrl()}/api/admin/student/1`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    goals: { x: 5, youtube: 2, tiktok: 3, instagram: 2 },
+                    platforms: { x: '@test', youtube: 'UCX6OQ3DkcsbYNE6H8uQQuVA', tiktok: '@test', instagram: 'test' }
+                })
+            });
+            const data = await response.json();
+            document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+    </script>
+</body>
+</html>

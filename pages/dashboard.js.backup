@@ -1,0 +1,1666 @@
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+
+export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState('audience-building');
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    // Check authentication
+    const token = localStorage.getItem('authToken');
+    const userRole = localStorage.getItem('userRole');
+    
+    if (!token || userRole !== 'admin') {
+      router.push('/login');
+      return;
+    }
+
+    // Set user info
+    setUser({ role: userRole });
+    setLoading(false);
+  }, [router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userRole');
+    router.push('/login');
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner">Loading...</div>
+        <style jsx>{`
+          .loading-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f5f5f5;
+          }
+          .loading-spinner {
+            font-size: 1.2rem;
+            color: #667eea;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dashboard-container">
+      <Head>
+        <title>AlphaX Tracker - Admin Dashboard</title>
+        <meta name="description" content="AlphaX Tracker Admin Dashboard" />
+      </Head>
+
+      {/* Header */}
+      <header className="dashboard-header">
+        <div className="header-content">
+          <div className="logo">
+            <h1>🎓 AlphaX Tracker</h1>
+          </div>
+          <div className="header-actions">
+            <span className="user-info">Admin Dashboard</span>
+            <button onClick={handleLogout} className="logout-btn">
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation */}
+      <nav className="dashboard-nav">
+        <div className="nav-content">
+          <button 
+            className={`nav-tab ${activeTab === 'audience-building' ? 'active' : ''}`}
+            onClick={() => setActiveTab('audience-building')}
+          >
+            Students
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'slack-bot' ? 'active' : ''}`}
+            onClick={() => setActiveTab('slack-bot')}
+          >
+            Messages
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'manage' ? 'active' : ''}`}
+            onClick={() => setActiveTab('manage')}
+          >
+            Manage Students
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            Settings
+          </button>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="dashboard-main">
+        <div className="main-content">
+          {activeTab === 'audience-building' && <AudienceBuildingTab />}
+          {activeTab === 'slack-bot' && <SlackBotTab />}
+          {activeTab === 'manage' && <ManageStudentsTab />}
+          {activeTab === 'settings' && <SettingsTab />}
+        </div>
+      </main>
+
+      <style jsx>{`
+        .dashboard-container {
+          min-height: 100vh;
+          background: #fafafa;
+        }
+
+        .dashboard-header {
+          background: white;
+          border-bottom: 1px solid #f0f0f0;
+          padding: 0 40px;
+        }
+
+        .header-content {
+          max-width: 1400px;
+          margin: 0 auto;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          height: 80px;
+        }
+
+        .logo h1 {
+          margin: 0;
+          color: #1a1a1a;
+          font-size: 1.4rem;
+          font-weight: 400;
+          letter-spacing: -0.01em;
+        }
+
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: 24px;
+        }
+
+        .user-info {
+          color: #666;
+          font-weight: 400;
+          font-size: 0.95rem;
+        }
+
+        .logout-btn {
+          background: #1a1a1a;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 400;
+          font-size: 0.9rem;
+          transition: all 0.2s ease;
+        }
+
+        .logout-btn:hover {
+          background: #333;
+          transform: translateY(-1px);
+        }
+
+        .dashboard-nav {
+          background: white;
+          border-bottom: 1px solid #f0f0f0;
+          padding: 0 40px;
+        }
+
+        .nav-content {
+          max-width: 1400px;
+          margin: 0 auto;
+          display: flex;
+          gap: 0;
+        }
+
+        .nav-tab {
+          background: none;
+          border: none;
+          padding: 20px 32px;
+          cursor: pointer;
+          font-weight: 400;
+          color: #666;
+          border-bottom: 2px solid transparent;
+          transition: all 0.2s ease;
+          font-size: 0.95rem;
+        }
+
+        .nav-tab:hover {
+          color: #1a1a1a;
+          background: #fafafa;
+        }
+
+        .nav-tab.active {
+          color: #1a1a1a;
+          border-bottom-color: #1a1a1a;
+          font-weight: 500;
+        }
+
+        .dashboard-main {
+          padding: 0;
+        }
+
+        .main-content {
+          max-width: 1400px;
+          margin: 0 auto;
+        }
+
+        @media (max-width: 768px) {
+          .dashboard-header,
+          .dashboard-nav {
+            padding: 0 20px;
+          }
+          
+          .header-content {
+            height: 70px;
+          }
+          
+          .nav-content {
+            overflow-x: auto;
+          }
+          
+          .nav-tab {
+            white-space: nowrap;
+            padding: 16px 24px;
+          }
+          
+          .logo h1 {
+            font-size: 1.2rem;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// Audience Building Tab Component
+function AudienceBuildingTab() {
+  const [students, setStudents] = useState([]);
+  const [studentStats, setStudentStats] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [editForm, setEditForm] = useState({
+    goals: { x: 0, youtube: 0, tiktok: 0, instagram: 0 },
+    platforms: { x: '', youtube: '', tiktok: '', instagram: '' }
+  });
+  const [notification, setNotification] = useState(null);
+
+  useEffect(() => {
+    fetchStudentsAndStats();
+  }, []);
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+  };
+
+  const fetchStudentsAndStats = async () => {
+    try {
+      // Fetch students
+      const response = await fetch('/api/students');
+      const data = await response.json();
+      if (data.success) {
+        setStudents(data.students);
+        
+        // Fetch stats for each student
+        const stats = {};
+        for (const student of data.students) {
+          try {
+            const statsResponse = await fetch(`/api/goals/check/${student.id}`);
+            const statsData = await statsResponse.json();
+            if (statsData.success) {
+              stats[student.id] = statsData;
+            }
+          } catch (error) {
+            console.error(`Error fetching stats for student ${student.id}:`, error);
+          }
+        }
+        setStudentStats(stats);
+      }
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditStudent = async (student) => {
+    console.log('Edit button clicked for student:', student);
+    setEditingStudent(student);
+    
+    // Fetch current profile
+    try {
+      const token = localStorage.getItem('authToken');
+      console.log('Using token for fetch:', token ? 'Token exists' : 'No token');
+      
+      const response = await fetch(`/api/admin/student/${student.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      console.log('Profile fetch response:', data);
+      
+      if (data.success) {
+        setEditForm(data.profile);
+      } else {
+        // Initialize with empty form if no profile exists
+        setEditForm({
+          goals: { x: 0, youtube: 0, tiktok: 0, instagram: 0 },
+          platforms: { x: '', youtube: '', tiktok: '', instagram: '' }
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching student profile:', error);
+      // Initialize with empty form on error
+      setEditForm({
+        goals: { x: 0, youtube: 0, tiktok: 0, instagram: 0 },
+        platforms: { x: '', youtube: '', tiktok: '', instagram: '' }
+      });
+    }
+  };
+
+  const handleSaveStudent = async () => {
+    console.log('Saving student profile:', editingStudent.id, editForm);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/admin/student/${editingStudent.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editForm)
+      });
+      
+      const data = await response.json();
+      console.log('Save response:', data);
+      
+      if (data.success) {
+        showNotification('Student profile updated successfully!', 'success');
+        setEditingStudent(null);
+        // Refresh stats
+        fetchStudentsAndStats();
+      } else {
+        showNotification('Failed to update: ' + (data.message || 'Unknown error'), 'error');
+      }
+    } catch (error) {
+      console.error('Error saving student profile:', error);
+      showNotification('Error saving profile: ' + error.message, 'error');
+    }
+  };
+
+  if (loading) {
+    return <div className="tab-loading">Loading student data...</div>;
+  }
+
+  return (
+    <div className="audience-building-tab">
+      {/* Notification */}
+      {notification && (
+        <div className={`notification ${notification.type}`}>
+          <span>{notification.message}</span>
+          <button className="notification-close" onClick={() => setNotification(null)}>×</button>
+        </div>
+      )}
+
+      <div className="tab-header">
+        <h2>Students</h2>
+        <p>{students.length} active students</p>
+      </div>
+
+      <div className="students-grid">
+        {students.map((student, index) => {
+          const stats = studentStats[student.id];
+          const hasGoals = stats && stats.overall && stats.overall.totalGoals > 0;
+          const progressPercentage = stats?.overall?.percentage || 0;
+          
+          return (
+            <div 
+              key={student.id} 
+              className={`student-card ${student.honors ? 'distinguished' : ''} ${progressPercentage >= 100 ? 'goal-met' : ''}`}
+            >
+              <div className="student-info">
+                <div className="student-name">
+                  {student.firstName} {student.lastName}
+                </div>
+                {hasGoals ? (
+                  <div className="goal-progress">
+                    <div className="progress-text">
+                      <span className="actual">{stats.overall.totalActual}</span>
+                      <span className="divider">/</span>
+                      <span className="goal">{stats.overall.totalGoals}</span>
+                      <span className="label">daily posts</span>
+                    </div>
+                    <div className="progress-bar-mini">
+                      <div 
+                        className="progress-fill-mini"
+                        style={{ width: `${Math.min(progressPercentage, 100)}%` }}
+                      />
+                    </div>
+                    <div className="platform-breakdown">
+                      {stats.stats.x > 0 && <span className="platform-stat">X: {stats.stats.x}</span>}
+                      {stats.stats.youtube > 0 && <span className="platform-stat">YT: {stats.stats.youtube}</span>}
+                      {stats.stats.tiktok > 0 && <span className="platform-stat">TT: {stats.stats.tiktok}</span>}
+                      {stats.stats.instagram > 0 && <span className="platform-stat">IG: {stats.stats.instagram}</span>}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="no-goals">
+                    No platform info configured
+                  </div>
+                )}
+              </div>
+              <div className="student-actions">
+                <div className="student-rank">#{index + 1}</div>
+                <button 
+                  className="edit-btn"
+                  onClick={() => handleEditStudent(student)}
+                  title="Edit student profile"
+                >
+                  ✏️
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Edit Student Modal */}
+      {editingStudent && (
+        <div className="edit-modal-overlay" onClick={() => setEditingStudent(null)}>
+          <div className="edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Edit Student Profile</h3>
+              <button className="close-btn" onClick={() => setEditingStudent(null)}>×</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="student-info-header">
+                <h4>{editingStudent.firstName} {editingStudent.lastName}</h4>
+                {editingStudent.honors && <span className="honors-badge">Honors</span>}
+              </div>
+              
+              <div className="form-section">
+                <h5>Daily Goals</h5>
+                <div className="goals-grid">
+                  <div className="form-group">
+                    <label>X (Twitter)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value={editForm.goals.x}
+                      onChange={(e) => setEditForm(prev => ({
+                        ...prev,
+                        goals: { ...prev.goals, x: parseInt(e.target.value) || 0 }
+                      }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>YouTube</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={editForm.goals.youtube}
+                      onChange={(e) => setEditForm(prev => ({
+                        ...prev,
+                        goals: { ...prev.goals, youtube: parseInt(e.target.value) || 0 }
+                      }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>TikTok</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value={editForm.goals.tiktok}
+                      onChange={(e) => setEditForm(prev => ({
+                        ...prev,
+                        goals: { ...prev.goals, tiktok: parseInt(e.target.value) || 0 }
+                      }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Instagram</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value={editForm.goals.instagram}
+                      onChange={(e) => setEditForm(prev => ({
+                        ...prev,
+                        goals: { ...prev.goals, instagram: parseInt(e.target.value) || 0 }
+                      }))}
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="form-section">
+                <h5>Social Media Handles</h5>
+                <div className="handles-grid">
+                  <div className="form-group">
+                    <label>X Handle</label>
+                    <input
+                      type="text"
+                      placeholder="@username"
+                      value={editForm.platforms.x}
+                      onChange={(e) => setEditForm(prev => ({
+                        ...prev,
+                        platforms: { ...prev.platforms, x: e.target.value }
+                      }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>YouTube Channel</label>
+                    <input
+                      type="text"
+                      placeholder="Channel ID or @handle"
+                      value={editForm.platforms.youtube}
+                      onChange={(e) => setEditForm(prev => ({
+                        ...prev,
+                        platforms: { ...prev.platforms, youtube: e.target.value }
+                      }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>TikTok Handle</label>
+                    <input
+                      type="text"
+                      placeholder="@username"
+                      value={editForm.platforms.tiktok}
+                      onChange={(e) => setEditForm(prev => ({
+                        ...prev,
+                        platforms: { ...prev.platforms, tiktok: e.target.value }
+                      }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Instagram Handle</label>
+                    <input
+                      type="text"
+                      placeholder="username"
+                      value={editForm.platforms.instagram}
+                      onChange={(e) => setEditForm(prev => ({
+                        ...prev,
+                        platforms: { ...prev.platforms, instagram: e.target.value }
+                      }))}
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="modal-note">
+                <p>Note: Only YouTube RSS feeds provide real tracking. Other platforms will show 0 unless proper API keys are configured.</p>
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              <button className="cancel-btn" onClick={() => setEditingStudent(null)}>
+                Cancel
+              </button>
+              <button className="save-btn" onClick={handleSaveStudent}>
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        .audience-building-tab {
+          background: #fafafa;
+          min-height: calc(100vh - 200px);
+          padding: 40px;
+        }
+
+        .tab-header {
+          margin-bottom: 40px;
+          text-align: center;
+        }
+
+        .tab-header h2 {
+          margin: 0 0 8px 0;
+          color: #1a1a1a;
+          font-size: 2.2rem;
+          font-weight: 300;
+          letter-spacing: -0.02em;
+        }
+
+        .tab-header p {
+          margin: 0;
+          color: #666;
+          font-size: 1rem;
+          font-weight: 400;
+        }
+
+        .students-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 20px;
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .student-card {
+          background: white;
+          border-radius: 12px;
+          padding: 24px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          transition: all 0.2s ease;
+          border: 1px solid #f0f0f0;
+          position: relative;
+        }
+
+        .student-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+          border-color: #e0e0e0;
+        }
+
+        .student-card.distinguished {
+          background: linear-gradient(135deg, #fffbf0 0%, #ffffff 100%);
+          border-color: #f5e6a3;
+        }
+
+        .student-card.distinguished:hover {
+          box-shadow: 0 8px 25px rgba(245, 230, 163, 0.15);
+        }
+
+        .student-info {
+          flex: 1;
+        }
+
+        .student-name {
+          font-size: 1.1rem;
+          font-weight: 500;
+          color: #1a1a1a;
+          margin-bottom: 8px;
+          line-height: 1.3;
+        }
+
+        .student-card.distinguished .student-name {
+          color: #8b6914;
+          font-weight: 600;
+        }
+
+        .student-details {
+          display: flex;
+          gap: 16px;
+          font-size: 0.9rem;
+          color: #666;
+        }
+
+        .points {
+          font-weight: 500;
+          color: #4a5568;
+        }
+
+        .student-card.distinguished .points {
+          color: #8b6914;
+        }
+
+        .activity {
+          color: #999;
+        }
+
+        .student-rank {
+          font-size: 1.2rem;
+          font-weight: 300;
+          color: #999;
+          margin-left: 16px;
+        }
+
+        .student-card.distinguished .student-rank {
+          color: #b8860b;
+          font-weight: 400;
+        }
+
+        .student-card.goal-met {
+          background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+          border-color: #86efac;
+        }
+
+        .goal-progress {
+          margin-top: 12px;
+        }
+
+        .progress-text {
+          display: flex;
+          align-items: baseline;
+          gap: 4px;
+          margin-bottom: 8px;
+        }
+
+        .progress-text .actual {
+          font-size: 1.2rem;
+          font-weight: 600;
+          color: #1a1a1a;
+        }
+
+        .student-card.goal-met .progress-text .actual {
+          color: #16a34a;
+        }
+
+        .progress-text .divider {
+          color: #999;
+          font-size: 1rem;
+        }
+
+        .progress-text .goal {
+          font-size: 1rem;
+          color: #666;
+        }
+
+        .progress-text .label {
+          font-size: 0.85rem;
+          color: #999;
+          margin-left: 8px;
+        }
+
+        .progress-bar-mini {
+          height: 4px;
+          background: #e0e0e0;
+          border-radius: 2px;
+          overflow: hidden;
+          margin-bottom: 8px;
+        }
+
+        .progress-fill-mini {
+          height: 100%;
+          background: #1a1a1a;
+          transition: width 0.3s ease;
+        }
+
+        .student-card.goal-met .progress-fill-mini {
+          background: #16a34a;
+        }
+
+        .platform-breakdown {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .platform-stat {
+          font-size: 0.8rem;
+          color: #666;
+          background: #f5f5f5;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .no-goals {
+          margin-top: 8px;
+          font-size: 0.9rem;
+          color: #999;
+          font-style: italic;
+        }
+
+        .tab-loading {
+          text-align: center;
+          padding: 80px 20px;
+          color: #666;
+          font-size: 1.1rem;
+          font-weight: 300;
+        }
+
+        .student-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .edit-btn {
+          background: white;
+          border: 1px solid #e0e0e0;
+          border-radius: 6px;
+          padding: 6px 10px;
+          cursor: pointer;
+          font-size: 0.9rem;
+          transition: all 0.2s ease;
+        }
+
+        .edit-btn:hover {
+          background: #f5f5f5;
+          border-color: #ccc;
+        }
+
+        /* Modal Styles */
+        .edit-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+        }
+
+        .edit-modal {
+          background: white;
+          border-radius: 12px;
+          width: 90%;
+          max-width: 600px;
+          max-height: 90vh;
+          overflow-y: auto;
+        }
+
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 24px;
+          border-bottom: 1px solid #f0f0f0;
+        }
+
+        .modal-header h3 {
+          margin: 0;
+          font-size: 1.4rem;
+          font-weight: 400;
+        }
+
+        .close-btn {
+          background: none;
+          border: none;
+          font-size: 1.5rem;
+          cursor: pointer;
+          padding: 0;
+          width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .modal-body {
+          padding: 24px;
+        }
+
+        .student-info-header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+
+        .student-info-header h4 {
+          margin: 0;
+          font-size: 1.2rem;
+          font-weight: 500;
+        }
+
+        .honors-badge {
+          background: #ffd700;
+          color: #1a1a1a;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+
+        .form-section {
+          margin-bottom: 32px;
+        }
+
+        .form-section h5 {
+          margin: 0 0 16px 0;
+          font-size: 1rem;
+          font-weight: 500;
+          color: #666;
+        }
+
+        .goals-grid, .handles-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 16px;
+        }
+
+        .form-group {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .form-group label {
+          font-size: 0.9rem;
+          color: #666;
+          margin-bottom: 4px;
+        }
+
+        .form-group input {
+          padding: 8px 12px;
+          border: 1px solid #e0e0e0;
+          border-radius: 6px;
+          font-size: 1rem;
+        }
+
+        .form-group input:focus {
+          outline: none;
+          border-color: #1a1a1a;
+        }
+
+        .modal-note {
+          background: #f8f9fa;
+          border-left: 3px solid #ffd700;
+          padding: 12px;
+          border-radius: 4px;
+        }
+
+        .modal-note p {
+          margin: 0;
+          font-size: 0.9rem;
+          color: #666;
+        }
+
+        .modal-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          padding: 24px;
+          border-top: 1px solid #f0f0f0;
+        }
+
+        .cancel-btn, .save-btn {
+          padding: 10px 20px;
+          border-radius: 6px;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .cancel-btn {
+          background: white;
+          border: 1px solid #e0e0e0;
+          color: #666;
+        }
+
+        .cancel-btn:hover {
+          background: #f5f5f5;
+        }
+
+        .save-btn {
+          background: #1a1a1a;
+          border: none;
+          color: white;
+        }
+
+        .save-btn:hover {
+          background: #333;
+        }
+
+        /* Notification Styles */
+        .notification {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: white;
+          border-radius: 8px;
+          padding: 16px 20px;
+          padding-right: 48px;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          z-index: 2000;
+          animation: slideIn 0.3s ease-out;
+          min-width: 300px;
+          border-left: 4px solid #16a34a;
+        }
+
+        .notification.error {
+          border-left-color: #dc2626;
+        }
+
+        .notification.success {
+          border-left-color: #16a34a;
+        }
+
+        .notification span {
+          flex: 1;
+          font-size: 0.95rem;
+          color: #1a1a1a;
+        }
+
+        .notification-close {
+          position: absolute;
+          right: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          font-size: 1.5rem;
+          color: #999;
+          cursor: pointer;
+          padding: 0;
+          width: 24px;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s ease;
+        }
+
+        .notification-close:hover {
+          color: #666;
+        }
+
+        @keyframes slideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .audience-building-tab {
+            padding: 20px;
+          }
+          
+          .students-grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+          }
+          
+          .student-card {
+            padding: 20px;
+          }
+          
+          .tab-header h2 {
+            font-size: 1.8rem;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .student-details {
+            flex-direction: column;
+            gap: 4px;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// Slack Bot Tab Component
+function SlackBotTab() {
+  return (
+    <div className="slack-bot-tab">
+      <div className="tab-header">
+        <h2>Messages</h2>
+        <p>Slack integration status</p>
+      </div>
+
+      <div className="status-section">
+        <div className="status-card">
+          <div className="status-info">
+            <div className="status-title">Connection Status</div>
+            <div className="status-badge pending">Pending Approval</div>
+          </div>
+          <div className="status-details">
+            <div className="detail-item">
+              <span>Workspace</span>
+              <span>Alpha High School</span>
+            </div>
+            <div className="detail-item">
+              <span>App ID</span>
+              <span>A09G99AL76W</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="info-card">
+          <p>Your Slack integration is awaiting workspace approval. Once approved, you'll be able to send direct messages and notifications to students.</p>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .slack-bot-tab {
+          background: #fafafa;
+          min-height: calc(100vh - 200px);
+          padding: 40px;
+        }
+
+        .tab-header {
+          margin-bottom: 40px;
+          text-align: center;
+        }
+
+        .tab-header h2 {
+          margin: 0 0 8px 0;
+          color: #1a1a1a;
+          font-size: 2.2rem;
+          font-weight: 300;
+          letter-spacing: -0.02em;
+        }
+
+        .tab-header p {
+          margin: 0;
+          color: #666;
+          font-size: 1rem;
+          font-weight: 400;
+        }
+
+        .status-section {
+          max-width: 600px;
+          margin: 0 auto;
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+
+        .status-card {
+          background: white;
+          border-radius: 12px;
+          padding: 32px;
+          border: 1px solid #f0f0f0;
+        }
+
+        .status-info {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+        }
+
+        .status-title {
+          font-size: 1.1rem;
+          font-weight: 500;
+          color: #1a1a1a;
+        }
+
+        .status-badge {
+          padding: 6px 16px;
+          border-radius: 20px;
+          font-size: 0.9rem;
+          font-weight: 500;
+        }
+
+        .status-badge.pending {
+          background: #fff3cd;
+          color: #856404;
+        }
+
+        .status-details {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .detail-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 0;
+          border-bottom: 1px solid #f5f5f5;
+        }
+
+        .detail-item:last-child {
+          border-bottom: none;
+        }
+
+        .detail-item span:first-child {
+          color: #666;
+          font-weight: 400;
+        }
+
+        .detail-item span:last-child {
+          color: #1a1a1a;
+          font-weight: 500;
+        }
+
+        .info-card {
+          background: white;
+          border-radius: 12px;
+          padding: 24px;
+          border: 1px solid #f0f0f0;
+        }
+
+        .info-card p {
+          margin: 0;
+          color: #666;
+          line-height: 1.6;
+        }
+
+        @media (max-width: 768px) {
+          .slack-bot-tab {
+            padding: 20px;
+          }
+          
+          .status-card,
+          .info-card {
+            padding: 24px 20px;
+          }
+          
+          .status-info {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// Manage Students Tab Component
+function ManageStudentsTab() {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [notification, setNotification] = useState(null);
+  const [newStudent, setNewStudent] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    honors: false
+  });
+  const [loading, setLoading] = useState(false);
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+  };
+
+  const handleAddStudent = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/admin/add-student', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify(newStudent)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showNotification(`Student added successfully! Email: ${data.credentials.email}, Password: ${data.credentials.temporaryPassword}`, 'success');
+        setNewStudent({
+          firstName: '',
+          lastName: '',
+          email: '',
+          password: '',
+          honors: false
+        });
+        setShowAddForm(false);
+      } else {
+        showNotification(data.message || 'Failed to add student', 'error');
+      }
+    } catch (error) {
+      showNotification('Error adding student', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="manage-students-tab">
+      {/* Notification */}
+      {notification && (
+        <div className={`notification ${notification.type}`}>
+          <span>{notification.message}</span>
+          <button className="notification-close" onClick={() => setNotification(null)}>×</button>
+        </div>
+      )}
+
+      <div className="tab-header">
+        <h2>Manage Students</h2>
+        <button 
+          className="add-student-btn"
+          onClick={() => setShowAddForm(!showAddForm)}
+        >
+          {showAddForm ? 'Cancel' : '+ Add New Student'}
+        </button>
+      </div>
+
+      {showAddForm && (
+        <div className="add-student-form">
+          <h3>Add New Student</h3>
+          <form onSubmit={handleAddStudent}>
+            <div className="form-row">
+              <div className="form-group">
+                <label>First Name *</label>
+                <input
+                  type="text"
+                  value={newStudent.firstName}
+                  onChange={(e) => setNewStudent({...newStudent, firstName: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Last Name *</label>
+                <input
+                  type="text"
+                  value={newStudent.lastName}
+                  onChange={(e) => setNewStudent({...newStudent, lastName: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Email (optional - will auto-generate if blank)</label>
+                <input
+                  type="email"
+                  value={newStudent.email}
+                  onChange={(e) => setNewStudent({...newStudent, email: e.target.value})}
+                  placeholder="firstname.lastname@alpha.school"
+                />
+              </div>
+              <div className="form-group">
+                <label>Password (optional - defaults to "Iloveschool")</label>
+                <input
+                  type="text"
+                  value={newStudent.password}
+                  onChange={(e) => setNewStudent({...newStudent, password: e.target.value})}
+                  placeholder="Leave blank for default"
+                />
+              </div>
+            </div>
+
+            <div className="form-group checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={newStudent.honors}
+                  onChange={(e) => setNewStudent({...newStudent, honors: e.target.checked})}
+                />
+                <span>Honors Student</span>
+              </label>
+            </div>
+
+            <div className="form-actions">
+              <button type="submit" disabled={loading} className="submit-btn">
+                {loading ? 'Adding...' : 'Add Student'}
+              </button>
+              <button type="button" onClick={() => setShowAddForm(false)} className="cancel-btn">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="info-section">
+        <h3>Important Notes</h3>
+        <ul>
+          <li>New students will receive an auto-generated email in the format: firstname.lastname@alpha.school</li>
+          <li>Default password is "Iloveschool" unless specified otherwise</li>
+          <li>Share the login credentials with the student securely</li>
+          <li>Students can set their daily goals and social media profiles after logging in</li>
+        </ul>
+      </div>
+
+      <style jsx>{`
+        .manage-students-tab {
+          background: #fafafa;
+          min-height: calc(100vh - 200px);
+          padding: 40px;
+          position: relative;
+        }
+
+        .tab-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 32px;
+        }
+
+        .tab-header h2 {
+          font-size: 1.8rem;
+          font-weight: 300;
+          color: #1a1a1a;
+        }
+
+        .add-student-btn {
+          background: #1a1a1a;
+          color: white;
+          border: none;
+          padding: 12px 24px;
+          border-radius: 6px;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .add-student-btn:hover {
+          background: #333;
+        }
+
+        .add-student-form {
+          background: white;
+          padding: 32px;
+          border-radius: 8px;
+          margin-bottom: 32px;
+          border: 1px solid #e0e0e0;
+        }
+
+        .add-student-form h3 {
+          margin: 0 0 24px 0;
+          font-size: 1.3rem;
+          font-weight: 400;
+          color: #1a1a1a;
+        }
+
+        .form-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          margin-bottom: 24px;
+        }
+
+        .form-group {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .form-group label {
+          font-size: 0.9rem;
+          color: #666;
+          margin-bottom: 8px;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="email"] {
+          padding: 10px 12px;
+          border: 1px solid #e0e0e0;
+          border-radius: 6px;
+          font-size: 0.95rem;
+        }
+
+        .form-group input:focus {
+          outline: none;
+          border-color: #1a1a1a;
+        }
+
+        .checkbox-group {
+          margin-bottom: 24px;
+        }
+
+        .checkbox-group label {
+          display: flex;
+          align-items: center;
+          cursor: pointer;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+          margin-right: 8px;
+        }
+
+        .form-actions {
+          display: flex;
+          gap: 12px;
+        }
+
+        .submit-btn {
+          background: #1a1a1a;
+          color: white;
+          border: none;
+          padding: 12px 24px;
+          border-radius: 6px;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+          background: #333;
+        }
+
+        .submit-btn:disabled {
+          background: #ccc;
+          cursor: not-allowed;
+        }
+
+        .cancel-btn {
+          background: white;
+          color: #666;
+          border: 1px solid #e0e0e0;
+          padding: 12px 24px;
+          border-radius: 6px;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .cancel-btn:hover {
+          background: #f5f5f5;
+        }
+
+        .info-section {
+          background: white;
+          padding: 24px;
+          border-radius: 8px;
+          border: 1px solid #e0e0e0;
+        }
+
+        .info-section h3 {
+          margin: 0 0 16px 0;
+          font-size: 1.1rem;
+          font-weight: 400;
+          color: #1a1a1a;
+        }
+
+        .info-section ul {
+          margin: 0;
+          padding-left: 24px;
+          color: #666;
+        }
+
+        .info-section li {
+          margin-bottom: 8px;
+          line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+          .manage-students-tab {
+            padding: 20px;
+          }
+          
+          .form-row {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// Settings Tab Component
+function SettingsTab() {
+  return (
+    <div className="settings-tab">
+      <div className="tab-header">
+        <h2>Settings</h2>
+        <p>System information</p>
+      </div>
+
+      <div className="settings-section">
+        <div className="info-card">
+          <div className="info-grid">
+            <div className="info-item">
+              <span>Version</span>
+              <span>1.0.0</span>
+            </div>
+            <div className="info-item">
+              <span>Environment</span>
+              <span>Development</span>
+            </div>
+            <div className="info-item">
+              <span>Last Updated</span>
+              <span>{new Date().toLocaleDateString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .settings-tab {
+          background: #fafafa;
+          min-height: calc(100vh - 200px);
+          padding: 40px;
+        }
+
+        .tab-header {
+          margin-bottom: 40px;
+          text-align: center;
+        }
+
+        .tab-header h2 {
+          margin: 0 0 8px 0;
+          color: #1a1a1a;
+          font-size: 2.2rem;
+          font-weight: 300;
+          letter-spacing: -0.02em;
+        }
+
+        .tab-header p {
+          margin: 0;
+          color: #666;
+          font-size: 1rem;
+          font-weight: 400;
+        }
+
+        .settings-section {
+          max-width: 600px;
+          margin: 0 auto;
+        }
+
+        .info-card {
+          background: white;
+          border-radius: 12px;
+          padding: 32px;
+          border: 1px solid #f0f0f0;
+        }
+
+        .info-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .info-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 0;
+          border-bottom: 1px solid #f5f5f5;
+        }
+
+        .info-item:last-child {
+          border-bottom: none;
+        }
+
+        .info-item span:first-child {
+          color: #666;
+          font-weight: 400;
+        }
+
+        .info-item span:last-child {
+          color: #1a1a1a;
+          font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+          .settings-tab {
+            padding: 20px;
+          }
+          
+          .info-card {
+            padding: 24px 20px;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
