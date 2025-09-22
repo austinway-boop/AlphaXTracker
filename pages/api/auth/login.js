@@ -128,7 +128,7 @@ export default async function handler(req, res) {
     return res.status(401).json({
       success: false,
       message: 'Invalid email or password',
-      hint: usingFallback ? 'Try demo@alpha.school / demo123 or Admin@Alpha.school / FutureOfEducation' : undefined
+      hint: usingFallback ? 'Try Admin@Alpha.school / FutureOfEducation or any student email with password: Iloveschool' : undefined
     });
 
   } catch (error) {

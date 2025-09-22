@@ -61,10 +61,6 @@ All students can login to the AlphaX Tracker system using the following format:
 - **Email**: Admin@Alpha.school
 - **Password**: FutureOfEducation
 
-### Demo Account
-- **Email**: demo@alpha.school
-- **Password**: demo123
-
 ## Notes
 - All student passwords are: `Iloveschool`
 - Honors students have higher point totals (750-950 points)
