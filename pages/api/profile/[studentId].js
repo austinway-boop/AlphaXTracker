@@ -48,6 +48,13 @@ export default async function handler(req, res) {
 
     // Merge with memory store data to get current session's goal completions
     const goalStatus = memoryStore.getGoalStatus(studentIdNum);
+    console.log(`Profile API - Memory store status for student ${studentIdNum}:`, goalStatus);
+    console.log(`Profile API - Profile from Sheets/Fallback:`, {
+      brainlift: profile.brainliftCompleted,
+      dailyGoal: profile.dailyGoalCompleted
+    });
+    
+    // Priority: Memory store > Sheets > Default
     const mergedProfile = {
       ...profile,
       brainliftCompleted: goalStatus.brainliftCompleted || profile.brainliftCompleted || false,
@@ -55,6 +62,11 @@ export default async function handler(req, res) {
       dailyGoalCompleted: goalStatus.dailyGoalCompleted || profile.dailyGoalCompleted || false,
       lastDailyGoalDate: goalStatus.lastDailyGoalDate || profile.lastDailyGoalDate || null
     };
+    
+    console.log(`Profile API - Final merged profile:`, {
+      brainlift: mergedProfile.brainliftCompleted,
+      dailyGoal: mergedProfile.dailyGoalCompleted
+    });
 
     return res.status(200).json({
       success: true,

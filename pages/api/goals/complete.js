@@ -68,12 +68,24 @@ export default async function handler(req, res) {
     const updatedStatus = memoryStore.updateGoalStatus(studentIdNum, type, true);
     console.log(`Updated ${type} for student ${studentIdNum} in memory store:`, updatedStatus);
     
-    // Try to update in Google Sheets as well
-    let updated = false;
+    // Try to update in Google Sheets first
+    let sheetsUpdated = false;
+    let profileUpdated = false;
+    
     try {
       const dbInitialized = await sheetsDB.initialize();
       if (dbInitialized) {
-        const updateData = {};
+        // Get current profile first
+        const currentProfile = await sheetsDB.getProfile(studentIdNum) || {};
+        
+        // Prepare update data
+        const updateData = {
+          ...currentProfile,
+          dailyGoal: currentProfile.dailyGoal || 'Complete daily tasks',
+          sessionGoal: currentProfile.sessionGoal || '100 points',
+          projectOneliner: currentProfile.projectOneliner || 'Working on project'
+        };
+        
         if (type === 'brainlift') {
           updateData.brainliftCompleted = true;
           updateData.lastBrainliftDate = today;
@@ -82,10 +94,11 @@ export default async function handler(req, res) {
           updateData.lastDailyGoalDate = today;
         }
         
-        updated = await sheetsDB.updateProfile(studentIdNum, updateData);
+        profileUpdated = await sheetsDB.updateProfile(studentIdNum, updateData);
+        console.log(`Profile update result for ${type}:`, profileUpdated ? 'SUCCESS' : 'FAILED');
         
         // Also update points
-        if (updated) {
+        if (profileUpdated) {
           const student = await sheetsDB.getStudent(studentIdNum);
           if (student) {
             const pointsToAdd = type === 'brainlift' ? 10 : 5;
@@ -94,13 +107,15 @@ export default async function handler(req, res) {
               lastActivity: today
             });
           }
+          sheetsUpdated = true;
         }
       }
     } catch (error) {
-      console.log('Could not update in Sheets, using memory store only');
+      console.error('Error updating in Sheets:', error.message);
+      console.log('Using memory store as fallback');
     }
 
-    // Return success (even if only updated locally)
+    // Return success with the updated status
     return res.status(200).json({
       success: true,
       message: `${type === 'brainlift' ? 'Brainlift' : 'Daily Goal'} marked as complete`,
@@ -108,7 +123,13 @@ export default async function handler(req, res) {
       type,
       completedAt: today,
       pointsAwarded: type === 'brainlift' ? 10 : 5,
-      persisted: updated
+      persisted: sheetsUpdated,
+      updatedStatus: {
+        brainliftCompleted: type === 'brainlift' ? true : updatedStatus.brainliftCompleted,
+        dailyGoalCompleted: type === 'dailyGoal' ? true : updatedStatus.dailyGoalCompleted,
+        lastBrainliftDate: type === 'brainlift' ? today : updatedStatus.lastBrainliftDate,
+        lastDailyGoalDate: type === 'dailyGoal' ? today : updatedStatus.lastDailyGoalDate
+      }
     });
 
   } catch (error) {

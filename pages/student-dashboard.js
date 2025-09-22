@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import ClientStorage from '../lib/client-storage';
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -67,7 +68,7 @@ export default function StudentDashboard() {
         const isBrainliftCompletedToday = profileData.lastBrainliftDate === today;
         const isDailyGoalCompletedToday = profileData.lastDailyGoalDate === today;
         
-        const newProfile = {
+        let newProfile = {
           goals: profileData.goals || {},
           platforms: profileData.platforms || {},
           dailyGoal: profileData.dailyGoal || '',
@@ -78,6 +79,9 @@ export default function StudentDashboard() {
           dailyGoalCompleted: isDailyGoalCompletedToday,
           lastDailyGoalDate: profileData.lastDailyGoalDate || null
         };
+        
+        // Merge with local storage to preserve client-side state
+        newProfile = ClientStorage.mergeWithProfile(newProfile, studentId);
         
         setProfile(newProfile);
       }
@@ -668,13 +672,15 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
   const handleBrainliftToggle = async () => {
     const newValue = !isBrainliftCompletedToday;
     
-    
     // Update UI immediately
     setProfile(prev => ({
       ...prev,
       brainliftCompleted: newValue,
       lastBrainliftDate: newValue ? today : null
     }));
+    
+    // Save to local storage for persistence
+    ClientStorage.saveGoalStatus(user.id, 'brainlift', newValue);
     
     // Save to backend and sync with Sheets
     try {
@@ -696,10 +702,8 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
       
       if (data.success) {
         showNotification('Brainlift status updated successfully!', 'success');
-        // Re-fetch profile with fresh data to ensure state is in sync
-        setTimeout(() => {
-          fetchProfile(user.id, true); // Pass true to force fresh data
-            }, 500);
+        // Don't re-fetch profile immediately - causes checkbox to uncheck
+        // The state is already updated locally
       } else {
         throw new Error(data.message);
       }
@@ -721,13 +725,15 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
   const handleDailyGoalToggle = async () => {
     const newValue = !isDailyGoalCompletedToday;
     
-    
     // Update UI immediately
     setProfile(prev => ({
       ...prev,
       dailyGoalCompleted: newValue,
       lastDailyGoalDate: newValue ? today : null
     }));
+    
+    // Save to local storage for persistence
+    ClientStorage.saveGoalStatus(user.id, 'dailyGoal', newValue);
     
     // Save to backend and sync with Sheets
     try {
@@ -750,10 +756,8 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
       
       if (data.success) {
         showNotification('Daily Goal status updated successfully!', 'success');
-        // Re-fetch profile with fresh data to ensure state is in sync
-        setTimeout(() => {
-          fetchProfile(user.id, true); // Pass true to force fresh data
-            }, 500);
+        // Don't re-fetch profile immediately - causes checkbox to uncheck
+        // The state is already updated locally
       } else {
         throw new Error(data.message);
       }
