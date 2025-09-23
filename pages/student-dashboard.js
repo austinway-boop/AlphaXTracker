@@ -697,27 +697,23 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
 
       const data = await response.json();
       
+      console.log(`[Dashboard] Brainlift API response:`, data);
       
       if (data.success) {
-        showNotification('Brainlift status updated successfully!', 'success');
-        console.log(`[Dashboard] Brainlift save response:`, data.updatedStatus);
+        showNotification(data.message || 'Brainlift status updated successfully!', 'success');
         
-        // Only update if the server confirms it's saved
-        if (data.updatedStatus) {
-          setProfile(prev => {
-            const updated = {
-              ...prev,
-              brainliftCompleted: data.updatedStatus.brainliftCompleted || true,
-              lastBrainliftDate: data.updatedStatus.lastBrainliftDate || new Date().toISOString(),
-              totalPoints: data.updatedStatus.totalPoints || prev.totalPoints
-            };
-            console.log(`[Dashboard] Updated profile state:`, {
-              brainlift: updated.brainliftCompleted,
-              date: updated.lastBrainliftDate
-            });
-            return updated;
-          });
-        }
+        // Update profile with server-confirmed values
+        setProfile(prev => ({
+          ...prev,
+          brainliftCompleted: data.completed,
+          lastBrainliftDate: data.completed ? today : null,
+          totalPoints: data.totalPoints || prev.totalPoints
+        }));
+        
+        // Refresh profile to ensure consistency
+        setTimeout(() => {
+          fetchProfile(user.id, true);
+        }, 500);
       } else {
         throw new Error(data.message);
       }
@@ -765,27 +761,23 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
 
       const data = await response.json();
       
+      console.log(`[Dashboard] Daily Goal API response:`, data);
       
       if (data.success) {
-        showNotification('Daily Goal status updated successfully!', 'success');
-        console.log(`[Dashboard] Daily Goal save response:`, data.updatedStatus);
+        showNotification(data.message || 'Daily Goal status updated successfully!', 'success');
         
-        // Only update if the server confirms it's saved
-        if (data.updatedStatus) {
-          setProfile(prev => {
-            const updated = {
-              ...prev,
-              dailyGoalCompleted: data.updatedStatus.dailyGoalCompleted || true,
-              lastDailyGoalDate: data.updatedStatus.lastDailyGoalDate || new Date().toISOString(),
-              totalPoints: data.updatedStatus.totalPoints || prev.totalPoints
-            };
-            console.log(`[Dashboard] Updated profile state:`, {
-              dailyGoal: updated.dailyGoalCompleted,
-              date: updated.lastDailyGoalDate
-            });
-            return updated;
-          });
-        }
+        // Update profile with server-confirmed values
+        setProfile(prev => ({
+          ...prev,
+          dailyGoalCompleted: data.completed,
+          lastDailyGoalDate: data.completed ? today : null,
+          totalPoints: data.totalPoints || prev.totalPoints
+        }));
+        
+        // Refresh profile to ensure consistency
+        setTimeout(() => {
+          fetchProfile(user.id, true);
+        }, 500);
       } else {
         throw new Error(data.message);
       }
