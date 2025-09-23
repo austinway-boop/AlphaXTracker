@@ -201,7 +201,7 @@ export default function ManageStudentsTab() {
 
   const handleDeleteStudent = async (studentId) => {
     try {
-      const response = await fetch(`/api/admin/delete-student?studentId=${studentId}`, {
+      const response = await fetch(`/api/admin/student/${studentId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
