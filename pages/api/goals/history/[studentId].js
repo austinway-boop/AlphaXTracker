@@ -49,47 +49,49 @@ export default async function handler(req, res) {
       if (existingEntry) {
         fullHistory.push({
           date: dateStr,
-          completed: {
-            brainlift: existingEntry.brainliftCompleted || false,
-            dailyGoal: existingEntry.dailyGoalCompleted || false,
+          brainliftCompleted: existingEntry.brainliftCompleted || false,
+          dailyGoalCompleted: existingEntry.dailyGoalCompleted || false,
+          dailyGoal: existingEntry.dailyGoal || '',
+          sessionGoal: existingEntry.sessionGoal || '',
+          projectOneliner: existingEntry.projectOneliner || '',
+          contentCreated: !!(existingEntry.audienceX || existingEntry.audienceYouTube || existingEntry.audienceTikTok || existingEntry.audienceInstagram),
+          audienceGoals: {
             x: existingEntry.audienceX || 0,
             youtube: existingEntry.audienceYouTube || 0,
             tiktok: existingEntry.audienceTikTok || 0,
             instagram: existingEntry.audienceInstagram || 0
           },
-          points: (existingEntry.brainliftCompleted ? 10 : 0) + (existingEntry.dailyGoalCompleted ? 5 : 0),
-          dailyGoal: existingEntry.dailyGoal || '',
-          sessionGoal: existingEntry.sessionGoal || '',
-          projectOneliner: existingEntry.projectOneliner || ''
+          points: (existingEntry.brainliftCompleted ? 10 : 0) + (existingEntry.dailyGoalCompleted ? 5 : 0)
         });
       } else {
         // No data for this date - add empty entry
         fullHistory.push({
           date: dateStr,
-          completed: {
-            brainlift: false,
-            dailyGoal: false,
+          brainliftCompleted: false,
+          dailyGoalCompleted: false,
+          dailyGoal: '',
+          sessionGoal: '',
+          projectOneliner: '',
+          contentCreated: false,
+          audienceGoals: {
             x: 0,
             youtube: 0,
             tiktok: 0,
             instagram: 0
           },
-          points: 0,
-          dailyGoal: '',
-          sessionGoal: '',
-          projectOneliner: ''
+          points: 0
         });
       }
     }
     
     // Calculate summary statistics
-    const brainliftCompletions = fullHistory.filter(h => h.completed.brainlift).length;
-    const dailyGoalCompletions = fullHistory.filter(h => h.completed.dailyGoal).length;
+    const brainliftCompletions = fullHistory.filter(h => h.brainliftCompleted).length;
+    const dailyGoalCompletions = fullHistory.filter(h => h.dailyGoalCompleted).length;
     
     // Calculate current streak
     let currentStreak = 0;
     for (let i = fullHistory.length - 1; i >= 0; i--) {
-      if (fullHistory[i].completed.brainlift || fullHistory[i].completed.dailyGoal) {
+      if (fullHistory[i].brainliftCompleted || fullHistory[i].dailyGoalCompleted) {
         currentStreak++;
       } else {
         break;
@@ -100,7 +102,7 @@ export default async function handler(req, res) {
     let longestStreak = 0;
     let tempStreak = 0;
     for (const entry of fullHistory) {
-      if (entry.completed.brainlift || entry.completed.dailyGoal) {
+      if (entry.brainliftCompleted || entry.dailyGoalCompleted) {
         tempStreak++;
         longestStreak = Math.max(longestStreak, tempStreak);
       } else {
