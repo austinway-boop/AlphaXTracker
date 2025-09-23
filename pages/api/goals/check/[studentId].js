@@ -1,133 +1,109 @@
-const sheetsDB = require('../../../../lib/sheets-database');
-const { DEFAULT_PROFILES, DEFAULT_STUDENTS } = require('../../../../lib/fallback-data');
-const SimpleStorage = require('../../../../lib/simple-storage');
+const redisDB = require('../../../../lib/redis-database');
 
 export default async function handler(req, res) {
-  const { studentId } = req.query;
-
-  if (!studentId) {
-    return res.status(400).json({
+  if (req.method !== 'GET') {
+    return res.status(405).json({
       success: false,
-      error: 'Student ID is required'
+      message: 'Method not allowed'
     });
   }
 
+  const { studentId } = req.query;
+  const studentIdNum = parseInt(studentId);
+  const today = new Date().toISOString().split('T')[0];
+
   try {
-    const studentIdNum = parseInt(studentId);
-    let profile = null;
-    let student = null;
-    let usingFallback = false;
-
-    // Try Google Sheets first
-    try {
-      const dbInitialized = await sheetsDB.initialize();
-      if (dbInitialized) {
-        profile = await sheetsDB.getProfile(studentIdNum);
-        student = await sheetsDB.getStudent(studentIdNum);
-      }
-    } catch (error) {
-      console.log('Google Sheets unavailable, using fallback');
-      usingFallback = true;
-    }
-
-    // Use fallback data if needed
-    if (!profile || !student || usingFallback) {
-      profile = DEFAULT_PROFILES[studentIdNum];
-      student = DEFAULT_STUDENTS.find(s => s.id === studentIdNum);
-      usingFallback = true;
-    }
-
-    if (!profile || !student) {
-      return res.status(404).json({
+    // Initialize Redis database
+    const dbInitialized = await redisDB.initialize();
+    if (!dbInitialized) {
+      return res.status(500).json({
         success: false,
-        error: 'Student not found'
+        message: 'Database initialization failed'
       });
     }
 
-    // Get completion status from Simple Storage (persists locally)
-    const goalStatus = await SimpleStorage.getGoalStatus(studentIdNum);
-    const today = new Date().toISOString().split('T')[0];
+    // Get student from Redis
+    const student = await redisDB.getStudentById(studentIdNum);
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found',
+        studentId: studentIdNum
+      });
+    }
+
+    // Get profile for default goals
+    const profile = await redisDB.getProfile(studentIdNum);
     
-    // Merge memory store status with profile data
-    const goals = {
-      dailyGoal: profile.dailyGoal || 10,
-      sessionGoal: profile.sessionGoal || 100,
-      brainlift: {
-        completed: goalStatus.brainliftCompleted || profile.brainliftCompleted || false,
-        lastCompleted: goalStatus.lastBrainliftDate || profile.lastBrainliftDate || null
-      },
-      dailyGoalCheck: {
-        completed: goalStatus.dailyGoalCompleted || profile.dailyGoalCompleted || false,
-        lastCompleted: goalStatus.lastDailyGoalDate || profile.lastDailyGoalDate || null
-      },
-      platforms: {
-        x: {
-          goal: profile.goalX || 3,
-          completed: Math.floor(Math.random() * (profile.goalX || 3)),
-          handle: profile.platformX || '@student'
-        },
-        youtube: {
-          goal: profile.goalYouTube || 2,
-          completed: Math.floor(Math.random() * (profile.goalYouTube || 2)),
-          handle: profile.platformYouTube || 'student_yt'
-        },
-        tiktok: {
-          goal: profile.goalTikTok || 2,
-          completed: Math.floor(Math.random() * (profile.goalTikTok || 2)),
-          handle: profile.platformTikTok || '@student_tt'
-        },
-        instagram: {
-          goal: profile.goalInstagram || 2,
-          completed: Math.floor(Math.random() * (profile.goalInstagram || 2)),
-          handle: profile.platformInstagram || 'student_ig'
-        }
-      },
-      projectOneliner: profile.projectOneliner || 'Working on project',
-      student: {
-        id: student.id,
-        name: student.fullName,
-        email: student.email,
-        honors: student.honors || false,
-        points: student.points || 0
-      }
-    };
+    // Get TODAY's specific goal status (not from profile!)
+    const todayGoals = await redisDB.getTodayGoals(studentIdNum);
+    
+    // Use today's goals for completion status, profile for defaults
+    const dailyCompleted = todayGoals.dailyGoalCompleted || false;
+    const brainliftCompleted = todayGoals.brainliftCompleted || false;
+    const audienceGoals = todayGoals.audienceGoals || {};
 
-    return res.status(200).json({
-      success: true,
-      goals,
-      date: today,
-      ...(usingFallback && { 
-        notice: 'Using demo data. Configure Google Sheets for full functionality.' 
-      })
-    });
-
-  } catch (error) {
-    console.error('Error checking goals:', error);
-    // Return mock data even on error
-    return res.status(200).json({
+    // Prepare response
+    const response = {
       success: true,
       goals: {
-        dailyGoal: 10,
-        sessionGoal: 100,
-        brainlift: { completed: false, lastCompleted: null },
-        dailyGoalCheck: { completed: false, lastCompleted: null },
-        platforms: {
-          x: { goal: 3, completed: 1, handle: '@student' },
-          youtube: { goal: 2, completed: 1, handle: 'student_yt' },
-          tiktok: { goal: 2, completed: 0, handle: '@student_tt' },
-          instagram: { goal: 2, completed: 1, handle: 'student_ig' }
+        dailyGoal: student.honors ? 15 : 10,
+        sessionGoal: student.honors ? 150 : 100,
+        brainlift: {
+          completed: brainliftCompleted,
+          lastCompleted: brainliftCompleted ? today : null
         },
-        projectOneliner: 'Working on project',
+        dailyGoalCheck: {
+          completed: dailyCompleted,
+          lastCompleted: dailyCompleted ? today : null
+        },
+        platforms: {
+          x: {
+            goal: profile?.goals?.x || 3,
+            completed: audienceGoals.x || 0,
+            handle: profile?.platforms?.x || '@student'
+          },
+          youtube: {
+            goal: profile?.goals?.youtube || 2,
+            completed: audienceGoals.youtube || 0,
+            handle: profile?.platforms?.youtube || 'student_yt'
+          },
+          tiktok: {
+            goal: profile?.goals?.tiktok || 2,
+            completed: audienceGoals.tiktok || 0,
+            handle: profile?.platforms?.tiktok || '@student_tt'
+          },
+          instagram: {
+            goal: profile?.goals?.instagram || 2,
+            completed: audienceGoals.instagram || 0,
+            handle: profile?.platforms?.instagram || 'student_ig'
+          }
+        },
+        projectOneliner: profile?.projectOneliner || 'Working on project',
         student: {
-          id: parseInt(studentId),
-          name: 'Student',
-          email: 'student@alpha.school',
-          honors: false,
-          points: 100
+          id: student.id,
+          name: `${student.firstName} ${student.lastName}`,
+          email: student.email,
+          honors: student.honors,
+          points: student.points || 0
         }
       },
-      date: new Date().toISOString().split('T')[0],
-      notice: 'Using fallback data due to error'
+      date: today
+    };
+
+    console.log(`[Check API] Goals for student ${studentIdNum} on ${today}:`, {
+      brainlift: brainliftCompleted,
+      dailyGoal: dailyCompleted
+    });
+
+    return res.status(200).json(response);
+
+  } catch (error) {
+    console.error('Error fetching goals:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching goals',
+      error: error.message
     });
   }
 }

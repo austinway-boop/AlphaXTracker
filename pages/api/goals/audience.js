@@ -1,4 +1,4 @@
-const sheetsDB = require('../../../lib/sheets-database');
+const redisDB = require('../../../lib/redis-database');
 const jwt = require('jsonwebtoken');
 
 export default async function handler(req, res) {
@@ -40,8 +40,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Initialize Sheets database
-    const dbInitialized = await sheetsDB.initialize();
+    // Initialize Redis database
+    const dbInitialized = await redisDB.initialize();
     if (!dbInitialized) {
       return res.status(500).json({
         success: false,
@@ -51,35 +51,31 @@ export default async function handler(req, res) {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Get current profile to merge data
-    const currentProfile = await sheetsDB.getProfile(studentId) || {};
-    
-    // Get today's existing goal history or create new entry
-    const existingHistory = await sheetsDB.getGoalHistory(studentId, 1);
-    const todayEntry = existingHistory.find(entry => entry.date === today) || {};
+    // Get today's goals from Redis
+    const todayGoals = await redisDB.getTodayGoals(studentId) || {};
 
     // Update audience building data
-    const audienceData = {
-      audienceX: todayEntry.audienceX || 0,
-      audienceYouTube: todayEntry.audienceYouTube || 0,
-      audienceTikTok: todayEntry.audienceTikTok || 0,
-      audienceInstagram: todayEntry.audienceInstagram || 0
+    const audienceData = todayGoals.audienceGoals || {
+      x: 0,
+      youtube: 0,
+      tiktok: 0,
+      instagram: 0
     };
 
     // Update the specific platform
     switch (platform.toLowerCase()) {
       case 'x':
       case 'twitter':
-        audienceData.audienceX = Math.max(audienceData.audienceX, count);
+        audienceData.x = Math.max(audienceData.x, count);
         break;
       case 'youtube':
-        audienceData.audienceYouTube = Math.max(audienceData.audienceYouTube, count);
+        audienceData.youtube = Math.max(audienceData.youtube, count);
         break;
       case 'tiktok':
-        audienceData.audienceTikTok = Math.max(audienceData.audienceTikTok, count);
+        audienceData.tiktok = Math.max(audienceData.tiktok, count);
         break;
       case 'instagram':
-        audienceData.audienceInstagram = Math.max(audienceData.audienceInstagram, count);
+        audienceData.instagram = Math.max(audienceData.instagram, count);
         break;
       default:
         return res.status(400).json({
@@ -88,16 +84,9 @@ export default async function handler(req, res) {
         });
     }
 
-    // Add/update goal history entry with audience data
-    await sheetsDB.addGoalHistory({
-      studentId: parseInt(studentId),
-      date: today,
-      dailyGoal: currentProfile.dailyGoal || todayEntry.dailyGoal || '',
-      dailyGoalCompleted: currentProfile.dailyGoalCompleted || todayEntry.dailyGoalCompleted || false,
-      sessionGoal: currentProfile.sessionGoal || todayEntry.sessionGoal || '',
-      projectOneliner: currentProfile.projectOneliner || todayEntry.projectOneliner || '',
-      brainliftCompleted: currentProfile.brainliftCompleted || todayEntry.brainliftCompleted || false,
-      ...audienceData
+    // Update today's goals with new audience data
+    await redisDB.updateTodayGoals(studentId, {
+      audienceGoals: audienceData
     });
 
     return res.status(200).json({

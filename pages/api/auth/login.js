@@ -1,6 +1,5 @@
 import jwt from 'jsonwebtoken';
-const sheetsDB = require('../../../lib/sheets-database');
-const { DEFAULT_STUDENTS } = require('../../../lib/fallback-data');
+const redisDB = require('../../../lib/redis-database');
 
 // Admin credentials
 const ADMIN_CREDENTIALS = {
@@ -58,31 +57,23 @@ export default async function handler(req, res) {
       });
     }
 
-    let student = null;
-    let usingFallback = false;
-
-    // Try Google Sheets first (if configured)
-    try {
-      const dbInitialized = await sheetsDB.initialize();
-      if (dbInitialized) {
-        student = await sheetsDB.getStudentByEmail(emailLower);
-        
-        // Update last activity if found
-        if (student && password === (student.password || 'Iloveschool')) {
-          await sheetsDB.updateStudent(student.id, {
-            lastActivity: new Date().toISOString()
-          });
-        }
-      }
-    } catch (error) {
-      console.log('Google Sheets not available, using fallback data');
-      usingFallback = true;
+    // Initialize Redis database
+    const dbInitialized = await redisDB.initialize();
+    if (!dbInitialized) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database initialization failed'
+      });
     }
 
-    // Fallback to default data if Google Sheets fails or student not found
-    if (!student || usingFallback) {
-      student = DEFAULT_STUDENTS.find(s => s.email.toLowerCase() === emailLower);
-      usingFallback = true;
+    // Find student by email in Redis
+    const student = await redisDB.getStudentByEmail(emailLower);
+    
+    // Update last activity if found and password matches
+    if (student && password === (student.password || 'Iloveschool')) {
+      await redisDB.updateStudent(student.id, {
+        lastActivity: new Date().toISOString()
+      });
     }
     
     // Check student credentials
@@ -97,8 +88,7 @@ export default async function handler(req, res) {
           firstName: student.firstName,
           lastName: student.lastName,
           honors: student.honors || false,
-          loginTime: new Date().toISOString(),
-          usingFallback: usingFallback
+          loginTime: new Date().toISOString()
         },
         JWT_SECRET,
         { expiresIn: '24h' }
@@ -117,18 +107,14 @@ export default async function handler(req, res) {
           fullName: student.fullName,
           role: 'student',
           honors: student.honors || false
-        },
-        ...(usingFallback && { 
-          notice: 'Using demo data. Configure Google Sheets for full functionality.' 
-        })
+        }
       });
     }
 
     // Invalid credentials
     return res.status(401).json({
       success: false,
-      message: 'Invalid email or password',
-      hint: usingFallback ? 'Try Admin@Alpha.school / FutureOfEducation or any student email with password: Iloveschool' : undefined
+      message: 'Invalid email or password'
     });
 
   } catch (error) {

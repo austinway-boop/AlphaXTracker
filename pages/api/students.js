@@ -1,5 +1,4 @@
-const sheetsDB = require('../../lib/sheets-database');
-const { DEFAULT_STUDENTS } = require('../../lib/fallback-data');
+const redisDB = require('../../lib/redis-database');
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -10,25 +9,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    let allStudents = [];
-    let usingFallback = false;
-    
-    // Try Google Sheets first
-    try {
-      const dbInitialized = await sheetsDB.initialize();
-      if (dbInitialized) {
-        allStudents = await sheetsDB.getAllStudents();
-      }
-    } catch (error) {
-      console.log('Google Sheets unavailable, using fallback data');
-      usingFallback = true;
+    // Initialize Redis database
+    const dbInitialized = await redisDB.initialize();
+    if (!dbInitialized) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database initialization failed'
+      });
     }
     
-    // Use fallback data if Sheets fails or returns empty
-    if (!allStudents || allStudents.length === 0) {
-      allStudents = DEFAULT_STUDENTS;
-      usingFallback = true;
-    }
+    // Get all students from Redis
+    const allStudents = await redisDB.getAllStudents();
     
     // Format response
     const formattedStudents = allStudents.map(student => ({
@@ -46,30 +37,15 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       students: formattedStudents,
-      totalStudents: formattedStudents.length,
-      ...(usingFallback && { 
-        notice: 'Using demo data. Configure Google Sheets for full functionality.' 
-      })
+      totalStudents: formattedStudents.length
     });
     
   } catch (error) {
     console.error('Error fetching students:', error);
-    // Even on error, return fallback data so the app works
-    return res.status(200).json({
-      success: true,
-      students: DEFAULT_STUDENTS.map(student => ({
-        id: student.id,
-        email: student.email,
-        firstName: student.firstName,
-        lastName: student.lastName,
-        fullName: student.fullName,
-        honors: student.honors || false,
-        points: student.points || 0,
-        status: student.status || 'active',
-        lastActivity: student.lastActivity || null
-      })),
-      totalStudents: DEFAULT_STUDENTS.length,
-      notice: 'Using demo data due to server error'
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching students',
+      error: error.message
     });
   }
 }
