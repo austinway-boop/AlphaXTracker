@@ -81,7 +81,11 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       message: 'Student added successfully',
-      student: newStudent
+      student: newStudent,
+      credentials: {
+        email: studentEmail,
+        password: password || 'Iloveschool'
+      }
     });
   } catch (error) {
     console.error('Error adding student:', error);

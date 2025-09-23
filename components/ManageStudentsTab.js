@@ -21,6 +21,7 @@ export default function ManageStudentsTab() {
   const [studentProgress, setStudentProgress] = useState([]);
   const [checkChartLoading, setCheckChartLoading] = useState(false);
   
+  const [addingStudent, setAddingStudent] = useState(false);
   const [newStudent, setNewStudent] = useState({
     firstName: '',
     lastName: '',
@@ -57,6 +58,8 @@ export default function ManageStudentsTab() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      console.log('Fetching groups and students...');
+      
       // Fetch groups
       const groupsResponse = await fetch('/api/admin/groups', {
         headers: {
@@ -66,6 +69,9 @@ export default function ManageStudentsTab() {
       const groupsData = await groupsResponse.json();
       if (groupsData.success) {
         setGroups(groupsData.groups || []);
+        console.log('Groups loaded:', groupsData.groups?.length || 0);
+      } else {
+        console.error('Failed to fetch groups:', groupsData.message);
       }
 
       // Fetch students
@@ -77,6 +83,10 @@ export default function ManageStudentsTab() {
           new Map((studentsData.students || []).map(s => [`${s.firstName}_${s.lastName}_${s.id}`, s])).values()
         );
         setStudents(uniqueStudents);
+        console.log('Students loaded:', uniqueStudents.length);
+      } else {
+        console.error('Failed to fetch students:', studentsData.message);
+        showNotification('Failed to load students', 'error');
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -95,7 +105,17 @@ export default function ManageStudentsTab() {
 
   const handleAddStudent = async (e) => {
     e.preventDefault();
+    
+    // Validate required fields on frontend
+    if (!newStudent.firstName.trim() || !newStudent.lastName.trim()) {
+      showNotification('First name and last name are required', 'error');
+      return;
+    }
+    
+    setAddingStudent(true);
     try {
+      console.log('Adding student:', newStudent);
+      
       const response = await fetch('/api/admin/add-student', {
         method: 'POST',
         headers: {
@@ -105,9 +125,23 @@ export default function ManageStudentsTab() {
         body: JSON.stringify(newStudent)
       });
 
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        showNotification(`HTTP Error: ${response.status}`, 'error');
+        return;
+      }
+
       const data = await response.json();
+      console.log('Response data:', data);
+      
       if (data.success) {
-        showNotification(`Student added! Email: ${data.credentials.email}`, 'success');
+        const email = data.credentials?.email || `${newStudent.firstName}.${newStudent.lastName}@alpha.school`;
+        showNotification(`Student added successfully! Email: ${email}`, 'success');
+        
+        // Reset form
         setNewStudent({
           firstName: '',
           lastName: '',
@@ -116,12 +150,20 @@ export default function ManageStudentsTab() {
           honors: false
         });
         setShowAddForm(false);
-        fetchData();
+        
+        // Refresh data
+        console.log('Refreshing student list...');
+        await fetchData();
+        console.log('Student list refreshed');
       } else {
+        console.error('API returned error:', data.message);
         showNotification(data.message || 'Failed to add student', 'error');
       }
     } catch (error) {
-      showNotification('Error adding student', 'error');
+      console.error('Error adding student:', error);
+      showNotification(`Error adding student: ${error.message}`, 'error');
+    } finally {
+      setAddingStudent(false);
     }
   };
 
@@ -739,8 +781,10 @@ export default function ManageStudentsTab() {
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="submit-btn">Add Student</button>
-              <button type="button" onClick={() => setShowAddForm(false)} className="cancel-btn">
+              <button type="submit" className="submit-btn" disabled={addingStudent}>
+                {addingStudent ? 'Adding Student...' : 'Add Student'}
+              </button>
+              <button type="button" onClick={() => setShowAddForm(false)} className="cancel-btn" disabled={addingStudent}>
                 Cancel
               </button>
             </div>
@@ -1927,10 +1971,22 @@ export default function ManageStudentsTab() {
           color: white;
         }
 
+        .submit-btn:disabled {
+          background: #ccc;
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+
         .cancel-btn {
           background: white;
           color: #666;
           border: 1px solid #e0e0e0;
+        }
+
+        .cancel-btn:disabled {
+          background: #f5f5f5;
+          color: #ccc;
+          cursor: not-allowed;
         }
 
         /* Students Section */
