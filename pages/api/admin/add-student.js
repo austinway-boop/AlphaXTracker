@@ -1,5 +1,5 @@
 import { getAuth } from '../../../lib/auth';
-const sheetsDB = require('../../../lib/sheets-database');
+const redisDB = require('../../../lib/redis-database');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -29,8 +29,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Initialize Sheets database
-    const dbInitialized = await sheetsDB.initialize();
+    // Initialize Redis database
+    const dbInitialized = await redisDB.initialize();
     if (!dbInitialized) {
       return res.status(500).json({
         success: false,
@@ -42,7 +42,7 @@ export default async function handler(req, res) {
     const studentEmail = email || `${firstName}.${lastName}@alpha.school`.toLowerCase();
 
     // Check if student already exists
-    const existingStudent = await sheetsDB.getStudentByEmail(studentEmail);
+    const existingStudent = await redisDB.getStudentByEmail(studentEmail);
     if (existingStudent) {
       return res.status(400).json({
         success: false,
@@ -50,28 +50,30 @@ export default async function handler(req, res) {
       });
     }
 
-    // Create new student
-    const newStudent = await sheetsDB.addStudent({
+    // Create new student in Redis
+    const newStudent = await redisDB.addStudent({
       email: studentEmail,
       password: password || 'Iloveschool',
       firstName,
       lastName,
       fullName: `${firstName} ${lastName}`,
       honors: honors || false,
-      groupId: groupId || null,
+      house: groupId || (honors ? 'House 1' : 'House 2'),
       school: 'Alpha High School',
-      status: 'Active',
+      status: 'active',
       points: 0
     });
 
-    // Create initial profile
-    await sheetsDB.updateProfile(newStudent.id, {
+    // Create initial profile in Redis
+    await redisDB.updateProfile(newStudent.id, {
       studentId: newStudent.id,
       dailyGoal: '',
       sessionGoal: '',
       projectOneliner: '',
       brainliftCompleted: false,
       lastBrainliftDate: null,
+      dailyGoalCompleted: false,
+      lastDailyGoalDate: null,
       goals: { x: 0, youtube: 0, tiktok: 0, instagram: 0 },
       platforms: { x: '', youtube: '', tiktok: '', instagram: '' }
     });

@@ -1,5 +1,5 @@
 import { getAuth } from '../../../../lib/auth';
-const sheetsDB = require('../../../../lib/sheets-database');
+const redisDB = require('../../../../lib/redis-database');
 
 export default async function handler(req, res) {
   // Verify admin authentication
@@ -12,9 +12,10 @@ export default async function handler(req, res) {
   }
 
   const { studentId } = req.query;
+  const studentIdNum = parseInt(studentId);
 
-  // Initialize Sheets database
-  const dbInitialized = await sheetsDB.initialize();
+  // Initialize Redis database
+  const dbInitialized = await redisDB.initialize();
   if (!dbInitialized) {
     return res.status(500).json({
       success: false,
@@ -24,8 +25,8 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      // Get student data
-      const student = await sheetsDB.getStudentById(studentId);
+      // Get student data from Redis
+      const student = await redisDB.getStudentById(studentIdNum);
       if (!student) {
         return res.status(404).json({
           success: false,
@@ -33,14 +34,20 @@ export default async function handler(req, res) {
         });
       }
 
-      // Get profile data
-      const profile = await sheetsDB.getProfile(studentId);
+      // Get profile data from Redis
+      const profile = await redisDB.getProfile(studentIdNum);
 
-      // Combine student and profile data
+      // Get today's goals
+      const todayGoals = await redisDB.getTodayGoals(studentIdNum);
+
+      // Combine student, profile, and today's goals data
       const fullProfile = {
         ...student,
         ...profile,
-        studentId: parseInt(studentId)
+        // Override with today's completion status
+        brainliftCompleted: todayGoals.brainliftCompleted || false,
+        dailyGoalCompleted: todayGoals.dailyGoalCompleted || false,
+        studentId: studentIdNum
       };
 
       return res.status(200).json({
@@ -75,11 +82,13 @@ export default async function handler(req, res) {
 
       // Update student data if needed
       if (Object.keys(studentUpdates).length > 0) {
-        await sheetsDB.updateStudent(studentId, studentUpdates);
+        await redisDB.updateStudent(studentIdNum, studentUpdates);
       }
 
       // Update profile data
-      await sheetsDB.updateProfile(studentId, profileUpdates);
+      if (Object.keys(profileUpdates).length > 0) {
+        await redisDB.updateProfile(studentIdNum, profileUpdates);
+      }
 
       return res.status(200).json({
         success: true,
@@ -96,7 +105,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'DELETE') {
     try {
-      await sheetsDB.deleteStudent(studentId);
+      await redisDB.deleteStudent(studentIdNum);
       
       return res.status(200).json({
         success: true,

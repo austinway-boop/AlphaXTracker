@@ -1,5 +1,4 @@
-const sheetsDB = require('../../../../lib/sheets-database');
-const { DEFAULT_PROFILES, DEFAULT_STUDENTS } = require('../../../../lib/fallback-data');
+const redisDB = require('../../../../lib/redis-database');
 
 export default async function handler(req, res) {
   const { studentId } = req.query;
@@ -13,26 +12,18 @@ export default async function handler(req, res) {
 
   try {
     const studentIdNum = parseInt(studentId);
-    let student = null;
-    let usingFallback = false;
-
-    // Try Google Sheets first
-    try {
-      const dbInitialized = await sheetsDB.initialize();
-      if (dbInitialized) {
-        student = await sheetsDB.getStudent(studentIdNum);
-      }
-    } catch (error) {
-      console.log('Google Sheets unavailable, using fallback');
-      usingFallback = true;
+    
+    // Initialize Redis database
+    const dbInitialized = await redisDB.initialize();
+    if (!dbInitialized) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database initialization failed'
+      });
     }
-
-    // Use fallback data if needed
-    if (!student || usingFallback) {
-      student = DEFAULT_STUDENTS.find(s => s.id === studentIdNum);
-      usingFallback = true;
-    }
-
+    
+    // Get student from Redis
+    const student = await redisDB.getStudentById(studentIdNum);
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -40,8 +31,11 @@ export default async function handler(req, res) {
       });
     }
 
-    // Generate mock history data (last 30 days)
-    const history = [];
+    // Get real goal history from Redis (last 30 days)
+    const history = await redisDB.getGoalHistory(studentIdNum, 30);
+    
+    // If no history, generate empty entries for visualization
+    const fullHistory = [];
     const today = new Date();
     
     for (let i = 29; i >= 0; i--) {
@@ -49,41 +43,84 @@ export default async function handler(req, res) {
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
       
-      // Generate random but consistent data based on date
-      const seed = studentIdNum + i;
-      const completed = {
-        brainlift: (seed % 3) > 0,
-        dailyGoal: (seed % 2) === 0,
-        x: Math.min(seed % 4, 3),
-        youtube: Math.min(seed % 3, 2),
-        tiktok: Math.min(seed % 3, 2),
-        instagram: Math.min(seed % 3, 2)
-      };
+      // Find existing history entry for this date
+      const existingEntry = history.find(h => h.date === dateStr);
       
-      history.push({
-        date: dateStr,
-        completed,
-        points: completed.brainlift ? 10 : 0 + completed.dailyGoal ? 5 : 0,
-        totalPoints: student.points - (i * 5) // Simulate gradual point accumulation
-      });
+      if (existingEntry) {
+        fullHistory.push({
+          date: dateStr,
+          completed: {
+            brainlift: existingEntry.brainliftCompleted || false,
+            dailyGoal: existingEntry.dailyGoalCompleted || false,
+            x: existingEntry.audienceX || 0,
+            youtube: existingEntry.audienceYouTube || 0,
+            tiktok: existingEntry.audienceTikTok || 0,
+            instagram: existingEntry.audienceInstagram || 0
+          },
+          points: (existingEntry.brainliftCompleted ? 10 : 0) + (existingEntry.dailyGoalCompleted ? 5 : 0),
+          dailyGoal: existingEntry.dailyGoal || '',
+          sessionGoal: existingEntry.sessionGoal || '',
+          projectOneliner: existingEntry.projectOneliner || ''
+        });
+      } else {
+        // No data for this date - add empty entry
+        fullHistory.push({
+          date: dateStr,
+          completed: {
+            brainlift: false,
+            dailyGoal: false,
+            x: 0,
+            youtube: 0,
+            tiktok: 0,
+            instagram: 0
+          },
+          points: 0,
+          dailyGoal: '',
+          sessionGoal: '',
+          projectOneliner: ''
+        });
+      }
+    }
+    
+    // Calculate summary statistics
+    const brainliftCompletions = fullHistory.filter(h => h.completed.brainlift).length;
+    const dailyGoalCompletions = fullHistory.filter(h => h.completed.dailyGoal).length;
+    
+    // Calculate current streak
+    let currentStreak = 0;
+    for (let i = fullHistory.length - 1; i >= 0; i--) {
+      if (fullHistory[i].completed.brainlift || fullHistory[i].completed.dailyGoal) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+    
+    // Calculate longest streak
+    let longestStreak = 0;
+    let tempStreak = 0;
+    for (const entry of fullHistory) {
+      if (entry.completed.brainlift || entry.completed.dailyGoal) {
+        tempStreak++;
+        longestStreak = Math.max(longestStreak, tempStreak);
+      } else {
+        tempStreak = 0;
+      }
     }
 
     return res.status(200).json({
       success: true,
       studentId: studentIdNum,
       studentName: student.fullName,
-      history,
+      history: fullHistory,
       summary: {
         totalDays: 30,
-        brainliftCompletions: history.filter(h => h.completed.brainlift).length,
-        dailyGoalCompletions: history.filter(h => h.completed.dailyGoal).length,
-        currentStreak: Math.floor(Math.random() * 7) + 1,
-        longestStreak: Math.floor(Math.random() * 15) + 5,
+        brainliftCompletions,
+        dailyGoalCompletions,
+        currentStreak,
+        longestStreak,
         totalPoints: student.points || 0
-      },
-      ...(usingFallback && { 
-        notice: 'Using demo data. Configure Google Sheets for full functionality.' 
-      })
+      }
     });
 
   } catch (error) {

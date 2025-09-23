@@ -1,5 +1,4 @@
-const sheetsDB = require('../../../../lib/sheets-database');
-const { DEFAULT_PROFILES, DEFAULT_STUDENTS } = require('../../../../lib/fallback-data');
+const redisDB = require('../../../../lib/redis-database');
 
 export default async function handler(req, res) {
   const { studentId } = req.query;
@@ -13,70 +12,74 @@ export default async function handler(req, res) {
 
   try {
     const studentIdNum = parseInt(studentId);
-    let profile = null;
-    let student = null;
-    let usingFallback = false;
-
-    // Try Google Sheets first
-    try {
-      const dbInitialized = await sheetsDB.initialize();
-      if (dbInitialized) {
-        profile = await sheetsDB.getProfile(studentIdNum);
-        student = await sheetsDB.getStudent(studentIdNum);
-      }
-    } catch (error) {
-      console.log('Google Sheets unavailable, using fallback');
-      usingFallback = true;
+    
+    // Initialize Redis database
+    const dbInitialized = await redisDB.initialize();
+    if (!dbInitialized) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database initialization failed'
+      });
     }
-
-    // Use fallback data if needed
-    if (!profile || !student || usingFallback) {
-      profile = DEFAULT_PROFILES[studentIdNum] || {};
-      student = DEFAULT_STUDENTS.find(s => s.id === studentIdNum);
-      usingFallback = true;
-    }
-
+    
+    // Get student from Redis
+    const student = await redisDB.getStudentById(studentIdNum);
     if (!student) {
       return res.status(404).json({
         success: false,
         error: 'Student not found'
       });
     }
+    
+    // Get profile from Redis
+    const profile = await redisDB.getProfile(studentIdNum);
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        error: 'Profile not found'
+      });
+    }
+    
+    // Get today's goals status
+    const todayGoals = await redisDB.getTodayGoals(studentIdNum);
 
     // Generate daily goal data
     const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
     const dailyData = {
       studentId: studentIdNum,
       studentName: student.fullName,
-      date: today.toISOString().split('T')[0],
+      date: todayStr,
       goals: {
         daily: profile.dailyGoal || 10,
         session: profile.sessionGoal || 100
       },
       completed: {
-        brainlift: profile.brainliftCompleted || false,
-        dailyGoal: profile.dailyGoalCompleted || false
+        // Use today's goals for completion status
+        brainlift: todayGoals.brainliftCompleted || false,
+        dailyGoal: todayGoals.dailyGoalCompleted || false
       },
       lastCompleted: {
-        brainlift: profile.lastBrainliftDate || null,
-        dailyGoal: profile.lastDailyGoalDate || null
+        brainlift: todayGoals.brainliftCompleted ? todayStr : profile.lastBrainliftDate || null,
+        dailyGoal: todayGoals.dailyGoalCompleted ? todayStr : profile.lastDailyGoalDate || null
       },
       socialMedia: {
         x: {
-          goal: profile.goalX || 3,
-          platform: profile.platformX || '@student'
+          goal: profile.goals?.x || 3,
+          platform: profile.platforms?.x || '@student'
         },
         youtube: {
-          goal: profile.goalYouTube || 2,
-          platform: profile.platformYouTube || 'student_yt'
+          goal: profile.goals?.youtube || 2,
+          platform: profile.platforms?.youtube || 'student_yt'
         },
         tiktok: {
-          goal: profile.goalTikTok || 2,
-          platform: profile.platformTikTok || '@student'
+          goal: profile.goals?.tiktok || 2,
+          platform: profile.platforms?.tiktok || '@student'
         },
         instagram: {
-          goal: profile.goalInstagram || 2,
-          platform: profile.platformInstagram || 'student_ig'
+          goal: profile.goals?.instagram || 2,
+          platform: profile.platforms?.instagram || 'student_ig'
         }
       },
       projectOneliner: profile.projectOneliner || 'Working on project',
@@ -85,10 +88,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      data: dailyData,
-      ...(usingFallback && { 
-        notice: 'Using demo data. Configure Google Sheets for full functionality.' 
-      })
+      data: dailyData
     });
 
   } catch (error) {

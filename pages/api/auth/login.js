@@ -78,6 +78,25 @@ export default async function handler(req, res) {
     
     // Check student credentials
     if (student && password === (student.password || 'Iloveschool')) {
+      // Ensure student has a profile (create if doesn't exist)
+      let profile = await redisDB.getProfile(student.id);
+      if (!profile || Object.keys(profile).length === 0) {
+        console.log(`[Login] Creating initial profile for student ${student.id}`);
+        profile = await redisDB.updateProfile(student.id, {
+          studentId: student.id,
+          dailyGoal: '',
+          sessionGoal: '',
+          projectOneliner: '',
+          brainliftCompleted: false,
+          lastBrainliftDate: null,
+          dailyGoalCompleted: false,
+          lastDailyGoalDate: null,
+          goals: { x: 0, youtube: 0, tiktok: 0, instagram: 0 },
+          platforms: { x: '', youtube: '', tiktok: '', instagram: '' },
+          lastUpdated: new Date().toISOString()
+        });
+      }
+      
       // Generate JWT token for student
       const token = jwt.sign(
         { 

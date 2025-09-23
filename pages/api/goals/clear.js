@@ -2,8 +2,7 @@
  * API to clear goal completion status (for testing/reset)
  */
 
-const SimpleStorage = require('../../../lib/simple-storage');
-const sheetsDB = require('../../../lib/sheets-database');
+const redisDB = require('../../../lib/redis-database');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -25,24 +24,30 @@ export default async function handler(req, res) {
 
     const studentIdNum = parseInt(studentId);
     
-    // Clear from Simple Storage
-    await SimpleStorage.saveGoalStatus(studentIdNum, 'brainlift', false);
-    await SimpleStorage.saveGoalStatus(studentIdNum, 'dailyGoal', false);
-    
-    // Clear from Google Sheets
-    try {
-      const dbInitialized = await sheetsDB.initialize();
-      if (dbInitialized) {
-        await sheetsDB.updateProfile(studentIdNum, {
-          brainliftCompleted: false,
-          lastBrainliftDate: '',
-          dailyGoalCompleted: false,
-          lastDailyGoalDate: ''
-        });
-      }
-    } catch (error) {
-      console.log('Could not clear from Sheets:', error.message);
+    // Initialize Redis database
+    const dbInitialized = await redisDB.initialize();
+    if (!dbInitialized) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database initialization failed'
+      });
     }
+    
+    // Clear today's goals in Redis
+    const today = new Date().toISOString().split('T')[0];
+    await redisDB.updateTodayGoals(studentIdNum, {
+      date: today,
+      brainliftCompleted: false,
+      dailyGoalCompleted: false
+    });
+    
+    // Also clear from profile
+    await redisDB.updateProfile(studentIdNum, {
+      brainliftCompleted: false,
+      lastBrainliftDate: null,
+      dailyGoalCompleted: false,
+      lastDailyGoalDate: null
+    });
 
     return res.status(200).json({
       success: true,
