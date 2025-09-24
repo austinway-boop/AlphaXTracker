@@ -1380,6 +1380,10 @@ function OverviewTab({ profile, setProfile, onSave, saving, user, showNotificati
 function PersonalGoalsTab({ profile, setProfile, onSave, saving }) {
   const [localProfile, setLocalProfile] = useState(profile);
   const [hasChanges, setHasChanges] = useState(false);
+  const [validationResults, setValidationResults] = useState({});
+  const [validating, setValidating] = useState({});
+  const [showOverride, setShowOverride] = useState({});
+  const [overridePassword, setOverridePassword] = useState({});
 
   useEffect(() => {
     setLocalProfile(profile);
@@ -1391,9 +1395,117 @@ function PersonalGoalsTab({ profile, setProfile, onSave, saving }) {
       [field]: value
     }));
     setHasChanges(true);
+    
+    // Clear validation results when user changes the goal
+    if (field === 'dailyGoal' || field === 'sessionGoal') {
+      setValidationResults(prev => ({
+        ...prev,
+        [field]: null
+      }));
+      setShowOverride(prev => ({
+        ...prev,
+        [field]: false
+      }));
+    }
+  };
+
+  const validateGoal = async (goalType) => {
+    const goalText = localProfile[goalType];
+    if (!goalText || goalText.trim().length < 10) {
+      return;
+    }
+
+    setValidating(prev => ({ ...prev, [goalType]: true }));
+    
+    try {
+      const response = await fetch('/api/goals/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          goalText: goalText.trim(),
+          goalType: goalType,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setValidationResults(prev => ({
+          ...prev,
+          [goalType]: result
+        }));
+      } else {
+        console.error('Validation failed:', result.message);
+      }
+    } catch (error) {
+      console.error('Error validating goal:', error);
+    } finally {
+      setValidating(prev => ({ ...prev, [goalType]: false }));
+    }
+  };
+
+  const handleOverride = async (goalType) => {
+    const password = overridePassword[goalType];
+    if (!password) return;
+
+    setValidating(prev => ({ ...prev, [goalType]: true }));
+    
+    try {
+      const response = await fetch('/api/goals/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          goalText: localProfile[goalType],
+          goalType: goalType,
+          overridePassword: password,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success && result.overridden) {
+        setValidationResults(prev => ({
+          ...prev,
+          [goalType]: result
+        }));
+        setShowOverride(prev => ({
+          ...prev,
+          [goalType]: false
+        }));
+        setOverridePassword(prev => ({
+          ...prev,
+          [goalType]: ''
+        }));
+      } else {
+        alert(result.message || 'Invalid override password');
+      }
+    } catch (error) {
+      console.error('Error with override:', error);
+      alert('Error processing override');
+    } finally {
+      setValidating(prev => ({ ...prev, [goalType]: false }));
+    }
+  };
+
+  const canSave = () => {
+    // Check if daily goal and session goal are validated or overridden
+    const dailyGoalValid = !localProfile.dailyGoal || 
+                          validationResults.dailyGoal?.validated || 
+                          validationResults.dailyGoal?.overridden;
+    const sessionGoalValid = !localProfile.sessionGoal || 
+                            validationResults.sessionGoal?.validated || 
+                            validationResults.sessionGoal?.overridden;
+    
+    return hasChanges && dailyGoalValid && sessionGoalValid && !saving;
   };
 
   const handleSave = async () => {
+    if (!canSave()) return;
+    
     setProfile(localProfile);
     await onSave();
     setHasChanges(false);
@@ -1425,8 +1537,8 @@ function PersonalGoalsTab({ profile, setProfile, onSave, saving }) {
         {/* Daily Goal */}
         <div className="goal-section">
           <div className="section-header">
-            <h3>Daily Goal</h3>
-            <p>What do you want to accomplish today?</p>
+            <h3>Daily Goal ⚡</h3>
+            <p>What do you want to accomplish today? (Should be achievable in 3 hours)</p>
           </div>
           <textarea
             className="goal-input"
@@ -1435,13 +1547,81 @@ function PersonalGoalsTab({ profile, setProfile, onSave, saving }) {
             onChange={(e) => handleChange('dailyGoal', e.target.value)}
             rows="3"
           />
+          
+          {localProfile.dailyGoal && localProfile.dailyGoal.trim().length >= 10 && (
+            <div className="goal-validation">
+              <button 
+                className="validate-btn"
+                onClick={() => validateGoal('dailyGoal')}
+                disabled={validating.dailyGoal || validationResults.dailyGoal?.validated || validationResults.dailyGoal?.overridden}
+              >
+                {validating.dailyGoal ? '🤔 AI is thinking...' : '🧠 Validate with AI'}
+              </button>
+              
+              {validationResults.dailyGoal && (
+                <div className={`validation-result ${validationResults.dailyGoal.validated || validationResults.dailyGoal.overridden ? 'valid' : 'invalid'}`}>
+                  <div className="validation-header">
+                    <span className={`validation-status ${validationResults.dailyGoal.validated || validationResults.dailyGoal.overridden ? 'success' : 'warning'}`}>
+                      {validationResults.dailyGoal.overridden ? '✅ Overridden' : 
+                       validationResults.dailyGoal.validated ? '✅ Goal Approved' : '⚠️ Needs Improvement'}
+                    </span>
+                    {validationResults.dailyGoal.score && (
+                      <span className="validation-score">Score: {validationResults.dailyGoal.score}/10</span>
+                    )}
+                  </div>
+                  <p className="validation-feedback">{validationResults.dailyGoal.feedback}</p>
+                  
+                  {validationResults.dailyGoal.suggestions && validationResults.dailyGoal.suggestions.length > 0 && (
+                    <div className="validation-suggestions">
+                      <strong>Suggestions:</strong>
+                      <ul>
+                        {validationResults.dailyGoal.suggestions.map((suggestion, index) => (
+                          <li key={index}>{suggestion}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {!validationResults.dailyGoal.validated && !validationResults.dailyGoal.overridden && (
+                    <div className="override-section">
+                      <button 
+                        className="override-btn"
+                        onClick={() => setShowOverride(prev => ({ ...prev, dailyGoal: !prev.dailyGoal }))}
+                      >
+                        {showOverride.dailyGoal ? 'Cancel Override' : '🚀 Override AI (I know my goal is ambitious)'}
+                      </button>
+                      
+                      {showOverride.dailyGoal && (
+                        <div className="override-form">
+                          <input
+                            type="password"
+                            placeholder="Enter override password..."
+                            value={overridePassword.dailyGoal || ''}
+                            onChange={(e) => setOverridePassword(prev => ({ ...prev, dailyGoal: e.target.value }))}
+                            className="override-password"
+                          />
+                          <button 
+                            className="confirm-override-btn"
+                            onClick={() => handleOverride('dailyGoal')}
+                            disabled={!overridePassword.dailyGoal || validating.dailyGoal}
+                          >
+                            {validating.dailyGoal ? 'Processing...' : 'Confirm Override'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Session Goal */}
         <div className="goal-section">
           <div className="section-header">
-            <h3>Session Goal</h3>
-            <p>Your goal for the current session (set by admin)</p>
+            <h3>Session Goal 🎯</h3>
+            <p>Your goal for the current session (Should be achievable in 8 weeks)</p>
           </div>
           <textarea
             className="goal-input"
@@ -1450,16 +1630,94 @@ function PersonalGoalsTab({ profile, setProfile, onSave, saving }) {
             onChange={(e) => handleChange('sessionGoal', e.target.value)}
             rows="3"
           />
+          
+          {localProfile.sessionGoal && localProfile.sessionGoal.trim().length >= 10 && (
+            <div className="goal-validation">
+              <button 
+                className="validate-btn"
+                onClick={() => validateGoal('sessionGoal')}
+                disabled={validating.sessionGoal || validationResults.sessionGoal?.validated || validationResults.sessionGoal?.overridden}
+              >
+                {validating.sessionGoal ? '🤔 AI is thinking...' : '🧠 Validate with AI'}
+              </button>
+              
+              {validationResults.sessionGoal && (
+                <div className={`validation-result ${validationResults.sessionGoal.validated || validationResults.sessionGoal.overridden ? 'valid' : 'invalid'}`}>
+                  <div className="validation-header">
+                    <span className={`validation-status ${validationResults.sessionGoal.validated || validationResults.sessionGoal.overridden ? 'success' : 'warning'}`}>
+                      {validationResults.sessionGoal.overridden ? '✅ Overridden' : 
+                       validationResults.sessionGoal.validated ? '✅ Goal Approved' : '⚠️ Needs Improvement'}
+                    </span>
+                    {validationResults.sessionGoal.score && (
+                      <span className="validation-score">Score: {validationResults.sessionGoal.score}/10</span>
+                    )}
+                  </div>
+                  <p className="validation-feedback">{validationResults.sessionGoal.feedback}</p>
+                  
+                  {validationResults.sessionGoal.suggestions && validationResults.sessionGoal.suggestions.length > 0 && (
+                    <div className="validation-suggestions">
+                      <strong>Suggestions:</strong>
+                      <ul>
+                        {validationResults.sessionGoal.suggestions.map((suggestion, index) => (
+                          <li key={index}>{suggestion}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {!validationResults.sessionGoal.validated && !validationResults.sessionGoal.overridden && (
+                    <div className="override-section">
+                      <button 
+                        className="override-btn"
+                        onClick={() => setShowOverride(prev => ({ ...prev, sessionGoal: !prev.sessionGoal }))}
+                      >
+                        {showOverride.sessionGoal ? 'Cancel Override' : '🚀 Override AI (I know my goal is ambitious)'}
+                      </button>
+                      
+                      {showOverride.sessionGoal && (
+                        <div className="override-form">
+                          <input
+                            type="password"
+                            placeholder="Enter override password..."
+                            value={overridePassword.sessionGoal || ''}
+                            onChange={(e) => setOverridePassword(prev => ({ ...prev, sessionGoal: e.target.value }))}
+                            className="override-password"
+                          />
+                          <button 
+                            className="confirm-override-btn"
+                            onClick={() => handleOverride('sessionGoal')}
+                            disabled={!overridePassword.sessionGoal || validating.sessionGoal}
+                          >
+                            {validating.sessionGoal ? 'Processing...' : 'Confirm Override'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Save Button */}
-        <button 
-          className="save-btn" 
-          onClick={handleSave}
-          disabled={saving || !hasChanges}
-        >
-          {saving ? 'Saving...' : hasChanges ? 'Save Changes' : 'Saved'}
-        </button>
+        <div className="save-section">
+          {hasChanges && (localProfile.dailyGoal || localProfile.sessionGoal) && 
+           !(validationResults.dailyGoal?.validated || validationResults.dailyGoal?.overridden || !localProfile.dailyGoal) && 
+           !(validationResults.sessionGoal?.validated || validationResults.sessionGoal?.overridden || !localProfile.sessionGoal) && (
+            <p className="validation-warning">
+              ⚠️ Please validate your goals with AI before saving, or use the override option if you're confident they're ambitious enough.
+            </p>
+          )}
+          
+          <button 
+            className="save-btn" 
+            onClick={handleSave}
+            disabled={!canSave()}
+          >
+            {saving ? 'Saving...' : canSave() ? 'Save Changes' : hasChanges ? 'Validate Goals to Save' : 'Saved'}
+          </button>
+        </div>
       </div>
 
       <style jsx>{`
@@ -1567,6 +1825,189 @@ function PersonalGoalsTab({ profile, setProfile, onSave, saving }) {
           cursor: not-allowed;
         }
 
+        /* Goal Validation Styles */
+        .goal-validation {
+          margin-top: 16px;
+        }
+
+        .validate-btn {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 6px;
+          font-size: 0.9rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          margin-bottom: 12px;
+        }
+
+        .validate-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .validate-btn:disabled {
+          background: #ddd;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .validation-result {
+          background: #f8f9fa;
+          border: 1px solid #e9ecef;
+          border-radius: 8px;
+          padding: 16px;
+          margin-top: 12px;
+        }
+
+        .validation-result.valid {
+          background: #d4edda;
+          border-color: #c3e6cb;
+        }
+
+        .validation-result.invalid {
+          background: #fff3cd;
+          border-color: #ffeaa7;
+        }
+
+        .validation-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+
+        .validation-status {
+          font-weight: 600;
+          font-size: 0.9rem;
+        }
+
+        .validation-status.success {
+          color: #155724;
+        }
+
+        .validation-status.warning {
+          color: #856404;
+        }
+
+        .validation-score {
+          background: #6c757d;
+          color: white;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+
+        .validation-feedback {
+          margin: 8px 0;
+          color: #495057;
+          font-size: 0.95rem;
+          line-height: 1.4;
+        }
+
+        .validation-suggestions {
+          margin-top: 12px;
+        }
+
+        .validation-suggestions strong {
+          color: #495057;
+          font-size: 0.9rem;
+        }
+
+        .validation-suggestions ul {
+          margin: 8px 0 0 0;
+          padding-left: 20px;
+        }
+
+        .validation-suggestions li {
+          margin-bottom: 4px;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .override-section {
+          margin-top: 16px;
+          padding-top: 16px;
+          border-top: 1px solid #dee2e6;
+        }
+
+        .override-btn {
+          background: #fd7e14;
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 6px;
+          font-size: 0.85rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .override-btn:hover {
+          background: #e76f00;
+          transform: translateY(-1px);
+        }
+
+        .override-form {
+          margin-top: 12px;
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .override-password {
+          flex: 1;
+          padding: 8px 12px;
+          border: 1px solid #ced4da;
+          border-radius: 4px;
+          font-size: 0.9rem;
+        }
+
+        .override-password:focus {
+          outline: none;
+          border-color: #fd7e14;
+          box-shadow: 0 0 0 2px rgba(253, 126, 20, 0.1);
+        }
+
+        .confirm-override-btn {
+          background: #28a745;
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 4px;
+          font-size: 0.85rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .confirm-override-btn:hover:not(:disabled) {
+          background: #218838;
+        }
+
+        .confirm-override-btn:disabled {
+          background: #6c757d;
+          cursor: not-allowed;
+        }
+
+        .save-section {
+          margin-top: 24px;
+        }
+
+        .validation-warning {
+          background: #fff3cd;
+          border: 1px solid #ffeaa7;
+          color: #856404;
+          padding: 12px 16px;
+          border-radius: 6px;
+          margin-bottom: 16px;
+          font-size: 0.9rem;
+          text-align: center;
+        }
+
         @media (max-width: 768px) {
           .personal-goals-tab {
             padding: 20px;
@@ -1574,6 +2015,17 @@ function PersonalGoalsTab({ profile, setProfile, onSave, saving }) {
           
           .goal-section {
             padding: 20px 16px;
+          }
+
+          .override-form {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .validation-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
           }
         }
       `}</style>
